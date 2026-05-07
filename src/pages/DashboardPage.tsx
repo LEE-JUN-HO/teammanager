@@ -46,14 +46,14 @@ export default function DashboardPage() {
 
   async function load() {
     setLoading(true)
-    const [cfg, data] = await Promise.all([
-      db.getTrafficLightConfig(),
-      db.getTeamBudgetSummaries(selectedFiscalYear, config),
-    ])
-    setConfig(cfg)
-    const data2 = await db.getTeamBudgetSummaries(selectedFiscalYear, cfg)
-    setSummaries(data2)
-    setLoading(false)
+    try {
+      const cfg = await db.getTrafficLightConfig()
+      const data = await db.getTeamBudgetSummaries(selectedFiscalYear, cfg)
+      setConfig(cfg)
+      setSummaries(data)
+    } finally {
+      setLoading(false)
+    }
   }
 
   const totalAllocated = summaries.reduce((s, t) => s + t.totalAllocated, 0)

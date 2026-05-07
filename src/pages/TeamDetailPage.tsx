@@ -30,19 +30,22 @@ export default function TeamDetailPage() {
   async function load() {
     if (!teamId) return
     setLoading(true)
-    const [teams, hcs, expItems, cfg] = await Promise.all([
-      db.getTeams(),
-      db.getHeadcounts(selectedFiscalYear),
-      db.getExpenseItems(teamId, selectedFiscalYear),
-      db.getTrafficLightConfig(),
-    ])
-    setTeam(teams.find(t => t.id === teamId) ?? null)
-    setHeadcounts(hcs.filter(h => h.teamId === teamId))
-    const byMonth: Record<number, number> = {}
-    for (const e of expItems) byMonth[e.month] = (byMonth[e.month] ?? 0) + e.amount
-    setExpenseByMonth(byMonth)
-    setConfig(cfg)
-    setLoading(false)
+    try {
+      const [teams, hcs, expItems, cfg] = await Promise.all([
+        db.getTeams(),
+        db.getHeadcounts(selectedFiscalYear),
+        db.getExpenseItems(teamId, selectedFiscalYear),
+        db.getTrafficLightConfig(),
+      ])
+      setTeam(teams.find(t => t.id === teamId) ?? null)
+      setHeadcounts(hcs.filter(h => h.teamId === teamId))
+      const byMonth: Record<number, number> = {}
+      for (const e of expItems) byMonth[e.month] = (byMonth[e.month] ?? 0) + e.amount
+      setExpenseByMonth(byMonth)
+      setConfig(cfg)
+    } finally {
+      setLoading(false)
+    }
   }
 
   const fiscalMonths = getFiscalMonths(selectedFiscalYear)

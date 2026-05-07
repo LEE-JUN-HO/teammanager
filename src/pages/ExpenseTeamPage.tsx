@@ -50,17 +50,20 @@ export default function ExpenseTeamPage() {
   async function load() {
     if (!teamId) return
     setLoading(true)
-    const [teams, expItems, hcs, cfg] = await Promise.all([
-      db.getTeams(),
-      db.getExpenseItems(teamId, selectedFiscalYear),
-      db.getHeadcounts(selectedFiscalYear),
-      db.getTrafficLightConfig(),
-    ])
-    setTeam(teams.find(t => t.id === teamId) ?? null)
-    setItems(expItems)
-    setHeadcounts(hcs.filter(h => h.teamId === teamId))
-    setConfig(cfg)
-    setLoading(false)
+    try {
+      const [teams, expItems, hcs, cfg] = await Promise.all([
+        db.getTeams(),
+        db.getExpenseItems(teamId, selectedFiscalYear),
+        db.getHeadcounts(selectedFiscalYear),
+        db.getTrafficLightConfig(),
+      ])
+      setTeam(teams.find(t => t.id === teamId) ?? null)
+      setItems(expItems)
+      setHeadcounts(hcs.filter(h => h.teamId === teamId))
+      setConfig(cfg)
+    } finally {
+      setLoading(false)
+    }
   }
 
   const filteredItems = selectedMonth === 'all'
