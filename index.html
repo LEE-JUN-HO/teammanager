@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="팀 일정, 멤버 업무량, 마일스톤을 한눈에 확인하는 TeamManager 대시보드"
+    />
+    <title>TeamManager</title>
+    <link rel="stylesheet" href="./styles.css" />
+    <script defer src="./script.js"></script>
+  </head>
+  <body>
+    <main class="page-shell">
+      <section class="hero-card" aria-labelledby="hero-title">
+        <div>
+          <p class="eyebrow">TeamManager</p>
+          <h1 id="hero-title">팀의 오늘 할 일을 한 화면에서 관리하세요.</h1>
+          <p class="hero-copy">
+            멤버별 업무 상태, 진행률, 주요 마일스톤을 빠르게 확인할 수 있는
+            Vercel 배포용 기본 대시보드입니다.
+          </p>
+        </div>
+        <a class="primary-action" href="#dashboard">대시보드 보기</a>
+      </section>
+
+      <section id="dashboard" class="dashboard-grid" aria-label="팀 대시보드">
+        <article class="panel summary-panel">
+          <span class="panel-label">이번 주 진행률</span>
+          <strong id="weekly-progress">68%</strong>
+          <p>배포 프리뷰를 기준으로 QA와 일정 공유를 시작할 수 있습니다.</p>
+        </article>
+
+        <article class="panel">
+          <h2>팀 멤버</h2>
+          <div class="member-list" id="member-list"></div>
+        </article>
+
+        <article class="panel">
+          <h2>마일스톤</h2>
+          <ol class="timeline" id="milestone-list"></ol>
+        </article>
+      </section>
+    </main>
+  </body>
+</html>
