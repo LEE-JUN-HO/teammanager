@@ -1,21 +1,25 @@
-import { useAppStore } from '../store'
+import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { useAppStore } from '../store/appStore'
+import { useAuthStore } from '../store/authStore'
+import * as db from '../lib/db'
 import Header from '../components/layout/Header'
 import { formatKRW, getFiscalMonths } from '../utils/budget'
 import StatusBadge, { StatusDot } from '../components/ui/StatusBadge'
 import ProgressBar from '../components/ui/ProgressBar'
-import { useNavigate } from 'react-router-dom'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from 'recharts'
 import { Users, Wallet, TrendingUp, AlertTriangle } from 'lucide-react'
-import type { TeamBudgetSummary } from '../types'
+import type { TeamBudgetSummary, TrafficLightConfig, StatusType } from '../types'
 
 function StatCard({ label, value, sub, icon: Icon, color }: {
   label: string; value: string; sub?: string; icon: React.ElementType; color: string
 }) {
   return (
     <div className="card flex items-start gap-4">
-      <div className={`w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0`} style={{ backgroundColor: color + '20' }}>
+      <div className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0"
+        style={{ backgroundColor: color + '20' }}>
         <Icon size={20} style={{ color }} />
       </div>
       <div>
@@ -27,95 +31,72 @@ function StatCard({ label, value, sub, icon: Icon, color }: {
   )
 }
 
-function TeamRow({ summary }: { summary: TeamBudgetSummary }) {
-  const navigate = useNavigate()
-  return (
-    <tr
-      className="hover:bg-toss-gray-50 cursor-pointer transition-colors"
-      onClick={() => navigate(`/teams/${summary.team.id}`)}
-    >
-      <td className="px-5 py-3.5">
-        <div className="flex items-center gap-2.5">
-          <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: summary.team.color }} />
-          <span className="font-semibold text-toss-gray-900 text-sm">{summary.team.name}</span>
-        </div>
-      </td>
-      <td className="px-5 py-3.5 text-sm text-toss-gray-700">
-        {summary.monthlyData.reduce((s, m) => s + m.headcount, 0) / summary.monthlyData.length | 0}명 avg
-      </td>
-      <td className="px-5 py-3.5 text-sm text-toss-gray-700 text-right">
-        {formatKRW(summary.totalAllocated)}
-      </td>
-      <td className="px-5 py-3.5 text-sm text-toss-gray-900 font-medium text-right">
-        {formatKRW(summary.totalActual)}
-      </td>
-      <td className="px-5 py-3.5">
-        <div className="min-w-[120px]">
-          <ProgressBar rate={summary.executionRate} status={summary.status} showLabel height={6} />
-        </div>
-      </td>
-      <td className="px-5 py-3.5">
-        <StatusBadge status={summary.status} />
-      </td>
-    </tr>
-  )
-}
-
 export default function DashboardPage() {
-  const { selectedFiscalYear, getAllTeamSummaries, getOrgStatus, trafficLightConfig } = useAppStore()
-  const summaries = getAllTeamSummaries(selectedFiscalYear)
-  const orgStatus = getOrgStatus(selectedFiscalYear)
+  const { selectedFiscalYear } = useAppStore()
+  const { profile } = useAuthStore()
+  const navigate = useNavigate()
+
+  const [summaries, setSummaries] = useState<TeamBudgetSummary[]>([])
+  const [config, setConfig] = useState<TrafficLightConfig>({ greenMin: 80, greenMax: 100, yellowLowMin: 60, yellowHighMax: 120 })
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    load()
+  }, [selectedFiscalYear])
+
+  async function load() {
+    setLoading(true)
+    const [cfg, data] = await Promise.all([
+      db.getTrafficLightConfig(),
+      db.getTeamBudgetSummaries(selectedFiscalYear, config),
+    ])
+    setConfig(cfg)
+    const data2 = await db.getTeamBudgetSummaries(selectedFiscalYear, cfg)
+    setSummaries(data2)
+    setLoading(false)
+  }
 
   const totalAllocated = summaries.reduce((s, t) => s + t.totalAllocated, 0)
-  const totalActual = summaries.reduce((s, t) => s + t.totalActual, 0)
-  const orgRate = totalAllocated > 0 ? (totalActual / totalAllocated * 100) : 0
-  const totalHeadcount = summaries.reduce((s, t) => {
-    const avg = t.monthlyData.reduce((a, m) => a + m.headcount, 0) / t.monthlyData.length
-    return s + avg
+  const totalActual    = summaries.reduce((s, t) => s + t.totalActual, 0)
+  const orgRate        = totalAllocated > 0 ? totalActual / totalAllocated * 100 : 0
+  const alertCount     = summaries.filter(s => s.status === 'red').length
+  const totalHC        = summaries.reduce((s, t) => {
+    const avg = t.monthlyData.filter(m => m.headcount > 0)
+    return s + (avg.length ? avg.reduce((a, m) => a + m.headcount, 0) / avg.length : 0)
   }, 0)
 
-  const alertCount = summaries.filter(s => s.status === 'red').length
+  const orgStatus: StatusType = summaries.some(s => s.status === 'red') ? 'red'
+    : summaries.some(s => s.status === 'yellow') ? 'yellow' : 'green'
 
-  // Chart data - monthly org totals
   const fiscalMonths = getFiscalMonths(selectedFiscalYear)
-  const chartData = fiscalMonths.map(fm => {
-    const allocated = summaries.reduce((s, t) => {
-      const m = t.monthlyData.find(md => md.month === fm.month)
-      return s + (m?.allocated ?? 0)
-    }, 0)
-    const actual = summaries.reduce((s, t) => {
-      const m = t.monthlyData.find(md => md.month === fm.month)
-      return s + (m?.actual ?? 0)
-    }, 0)
-    return {
-      name: fm.shortLabel,
-      배정예산: Math.round(allocated / 10000),
-      집행금액: Math.round(actual / 10000),
-    }
-  })
+  const chartData = fiscalMonths.map(fm => ({
+    name: fm.shortLabel,
+    배정예산: Math.round(summaries.reduce((s, t) => s + (t.monthlyData.find(m => m.month === fm.month)?.allocated ?? 0), 0) / 10000),
+    집행금액: Math.round(summaries.reduce((s, t) => s + (t.monthlyData.find(m => m.month === fm.month)?.actual ?? 0), 0) / 10000),
+  }))
+
+  if (loading) return (
+    <div className="flex items-center justify-center h-64">
+      <div className="w-8 h-8 border-2 border-toss-blue border-t-transparent rounded-full animate-spin" />
+    </div>
+  )
 
   return (
     <div>
-      <Header
-        title="전체 현황"
-        subtitle={`${selectedFiscalYear}년 2월 ~ ${selectedFiscalYear + 1}년 1월`}
-      />
-
+      <Header title="전체 현황" subtitle={`${selectedFiscalYear}년 2월 ~ ${selectedFiscalYear + 1}년 1월`} />
       <div className="p-6 space-y-6">
+
         {/* Org status banner */}
-        <div
-          className={`rounded-2xl px-5 py-4 flex items-center gap-4 ${
-            orgStatus === 'green' ? 'bg-status-green-bg' :
-            orgStatus === 'yellow' ? 'bg-status-yellow-bg' : 'bg-status-red-bg'
-          }`}
-        >
+        <div className={`rounded-2xl px-5 py-4 flex items-center gap-4 ${
+          orgStatus === 'green' ? 'bg-status-green-bg' :
+          orgStatus === 'yellow' ? 'bg-status-yellow-bg' : 'bg-status-red-bg'}`}>
           <StatusDot status={orgStatus} size={14} />
           <div>
             <p className="font-semibold text-toss-gray-900 text-sm">
               전체 조직 예산 집행률 {orgRate.toFixed(1)}%
             </p>
             <p className="text-xs text-toss-gray-600 mt-0.5">
-              정상 기준: {trafficLightConfig.greenMin}% ~ {trafficLightConfig.greenMax}%
+              정상 기준: {config.greenMin}% ~ {config.greenMax}%
               {alertCount > 0 && ` · ⚠ ${alertCount}개 팀 위험`}
             </p>
           </div>
@@ -124,14 +105,10 @@ export default function DashboardPage() {
 
         {/* Stat cards */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <StatCard label="총 인원 (평균)" value={`${Math.round(totalHeadcount)}명`}
-            icon={Users} color="#0064FF" />
-          <StatCard label="배정 예산" value={formatKRW(totalAllocated)}
-            sub="연간 합계" icon={Wallet} color="#7B61FF" />
-          <StatCard label="집행 금액" value={formatKRW(totalActual)}
-            sub="현재까지" icon={TrendingUp} color="#00C896" />
-          <StatCard label="주의 팀" value={`${alertCount}개 팀`}
-            sub="위험 신호" icon={AlertTriangle} color="#FF4B4B" />
+          <StatCard label="총 인원 (평균)" value={`${Math.round(totalHC)}명`} icon={Users} color="#0064FF" />
+          <StatCard label="배정 예산" value={formatKRW(totalAllocated)} sub="연간 합계" icon={Wallet} color="#7B61FF" />
+          <StatCard label="집행 금액" value={formatKRW(totalActual)} sub="현재까지" icon={TrendingUp} color="#00C896" />
+          <StatCard label="주의 팀" value={`${alertCount}개 팀`} sub="위험 신호" icon={AlertTriangle} color="#FF4B4B" />
         </div>
 
         {/* Chart */}
@@ -142,10 +119,8 @@ export default function DashboardPage() {
               <CartesianGrid strokeDasharray="3 3" stroke="#F2F4F6" />
               <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#8B95A1' }} axisLine={false} tickLine={false} />
               <YAxis tick={{ fontSize: 11, fill: '#8B95A1' }} axisLine={false} tickLine={false} />
-              <Tooltip
-                contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.1)' }}
-                formatter={(v: number) => [`${v.toLocaleString()}만원`]}
-              />
+              <Tooltip contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.1)' }}
+                formatter={(v: number) => [`${v.toLocaleString()}만원`]} />
               <Legend wrapperStyle={{ fontSize: 12 }} />
               <Bar dataKey="배정예산" fill="#E6ECFF" radius={[4, 4, 0, 0]} />
               <Bar dataKey="집행금액" fill="#0064FF" radius={[4, 4, 0, 0]} />
@@ -163,26 +138,43 @@ export default function DashboardPage() {
               <thead>
                 <tr className="border-b border-toss-gray-100">
                   {['팀명', '인원', '배정 예산', '집행 금액', '집행률', '상태'].map(h => (
-                    <th key={h} className="px-5 py-3 text-left text-xs font-semibold text-toss-gray-500 uppercase tracking-wider">
-                      {h}
-                    </th>
+                    <th key={h} className="px-5 py-3 text-left text-xs font-semibold text-toss-gray-500">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody className="divide-y divide-toss-gray-100">
-                {summaries.map(s => <TeamRow key={s.team.id} summary={s} />)}
+                {summaries.map(s => (
+                  <tr key={s.team.id}
+                    className="hover:bg-toss-gray-50 cursor-pointer transition-colors"
+                    onClick={() => navigate(`/teams/${s.team.id}`)}>
+                    <td className="px-5 py-3.5">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: s.team.color }} />
+                        <span className="font-semibold text-toss-gray-900 text-sm">{s.team.name}</span>
+                      </div>
+                    </td>
+                    <td className="px-5 py-3.5 text-sm text-toss-gray-600">
+                      {Math.round(s.monthlyData.filter(m => m.headcount > 0).reduce((a, m) => a + m.headcount, 0) /
+                        (s.monthlyData.filter(m => m.headcount > 0).length || 1))}명 avg
+                    </td>
+                    <td className="px-5 py-3.5 text-sm text-toss-gray-700 text-right">{formatKRW(s.totalAllocated)}</td>
+                    <td className="px-5 py-3.5 text-sm font-medium text-right">{formatKRW(s.totalActual)}</td>
+                    <td className="px-5 py-3.5 min-w-[130px]">
+                      <ProgressBar rate={s.executionRate} status={s.status} showLabel height={6} />
+                    </td>
+                    <td className="px-5 py-3.5"><StatusBadge status={s.status} /></td>
+                  </tr>
+                ))}
               </tbody>
               <tfoot>
                 <tr className="border-t-2 border-toss-gray-100 bg-toss-gray-50">
-                  <td className="px-5 py-3 text-sm font-bold text-toss-gray-900" colSpan={2}>합계</td>
-                  <td className="px-5 py-3 text-sm font-semibold text-toss-gray-700 text-right">{formatKRW(totalAllocated)}</td>
-                  <td className="px-5 py-3 text-sm font-bold text-toss-gray-900 text-right">{formatKRW(totalActual)}</td>
-                  <td className="px-5 py-3">
+                  <td className="px-5 py-3 text-sm font-bold" colSpan={2}>합계</td>
+                  <td className="px-5 py-3 text-sm font-semibold text-right">{formatKRW(totalAllocated)}</td>
+                  <td className="px-5 py-3 text-sm font-bold text-right">{formatKRW(totalActual)}</td>
+                  <td className="px-5 py-3 min-w-[130px]">
                     <ProgressBar rate={orgRate} status={orgStatus} showLabel height={6} />
                   </td>
-                  <td className="px-5 py-3">
-                    <StatusBadge status={orgStatus} />
-                  </td>
+                  <td className="px-5 py-3"><StatusBadge status={orgStatus} /></td>
                 </tr>
               </tfoot>
             </table>

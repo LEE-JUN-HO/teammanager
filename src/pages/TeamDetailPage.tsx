@@ -1,104 +1,109 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { useAppStore } from '../store'
+import { useAppStore } from '../store/appStore'
+import { useAuthStore } from '../store/authStore'
+import * as db from '../lib/db'
 import Header from '../components/layout/Header'
-import { formatKRW, formatKRWFull, getFiscalMonths } from '../utils/budget'
+import { formatKRW, formatKRWFull, getFiscalMonths, calcAllocated, calcExecutionRate, getExecutionStatus } from '../utils/budget'
 import StatusBadge from '../components/ui/StatusBadge'
 import ProgressBar from '../components/ui/ProgressBar'
-import { ChevronLeft, Edit2, Check, X } from 'lucide-react'
-import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, Legend,
-} from 'recharts'
-
-function EditableCell({ value, onSave, prefix = '' }: {
-  value: number; onSave: (v: number) => void; prefix?: string
-}) {
-  const [editing, setEditing] = useState(false)
-  const [draft, setDraft] = useState(String(value))
-
-  const commit = () => {
-    const n = Number(draft.replace(/,/g, ''))
-    if (!isNaN(n) && n >= 0) onSave(n)
-    setEditing(false)
-  }
-
-  if (!editing) {
-    return (
-      <button
-        onClick={() => { setDraft(String(value)); setEditing(true) }}
-        className="flex items-center gap-1 text-sm text-toss-gray-900 hover:text-toss-blue group"
-      >
-        {prefix}{value.toLocaleString()}
-        <Edit2 size={11} className="opacity-0 group-hover:opacity-100 transition-opacity" />
-      </button>
-    )
-  }
-
-  return (
-    <div className="flex items-center gap-1">
-      <input
-        autoFocus
-        className="w-24 px-2 py-1 text-sm border border-toss-blue rounded-lg focus:outline-none"
-        value={draft}
-        onChange={e => setDraft(e.target.value)}
-        onKeyDown={e => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') setEditing(false) }}
-      />
-      <button onClick={commit} className="text-status-green"><Check size={14} /></button>
-      <button onClick={() => setEditing(false)} className="text-toss-gray-400"><X size={14} /></button>
-    </div>
-  )
-}
+import { ChevronLeft, ClipboardList } from 'lucide-react'
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts'
+import type { Team, MonthlyHeadcount, TrafficLightConfig, StatusType } from '../types'
 
 export default function TeamDetailPage() {
   const { teamId } = useParams<{ teamId: string }>()
   const navigate = useNavigate()
-  const { selectedFiscalYear, getTeamSummary, updateHeadcount, updateActualAmount, currentUser } = useAppStore()
-  const summary = getTeamSummary(teamId!, selectedFiscalYear)
+  const { selectedFiscalYear } = useAppStore()
+  const { profile } = useAuthStore()
 
-  if (!summary) return <div className="p-6 text-toss-gray-500">팀을 찾을 수 없어요.</div>
+  const [team, setTeam] = useState<Team | null>(null)
+  const [headcounts, setHeadcounts] = useState<MonthlyHeadcount[]>([])
+  const [expenseByMonth, setExpenseByMonth] = useState<Record<number, number>>({})
+  const [config, setConfig] = useState<TrafficLightConfig>({ greenMin: 80, greenMax: 100, yellowLowMin: 60, yellowHighMax: 120 })
+  const [loading, setLoading] = useState(true)
+
+  const canEdit = profile?.role === 'admin' || (profile?.role === 'manager' && profile?.teamId === teamId)
+
+  useEffect(() => { load() }, [teamId, selectedFiscalYear])
+
+  async function load() {
+    if (!teamId) return
+    setLoading(true)
+    const [teams, hcs, expItems, cfg] = await Promise.all([
+      db.getTeams(),
+      db.getHeadcounts(selectedFiscalYear),
+      db.getExpenseItems(teamId, selectedFiscalYear),
+      db.getTrafficLightConfig(),
+    ])
+    setTeam(teams.find(t => t.id === teamId) ?? null)
+    setHeadcounts(hcs.filter(h => h.teamId === teamId))
+    const byMonth: Record<number, number> = {}
+    for (const e of expItems) byMonth[e.month] = (byMonth[e.month] ?? 0) + e.amount
+    setExpenseByMonth(byMonth)
+    setConfig(cfg)
+    setLoading(false)
+  }
 
   const fiscalMonths = getFiscalMonths(selectedFiscalYear)
-  const canEdit = currentUser?.role === 'admin' || currentUser?.teamId === teamId
 
-  const chartData = fiscalMonths.map(fm => {
-    const md = summary.monthlyData.find(m => m.month === fm.month)
-    return {
-      name: fm.shortLabel,
-      배정: Math.round((md?.allocated ?? 0) / 10000),
-      집행: Math.round((md?.actual ?? 0) / 10000),
-    }
+  const monthlyData = fiscalMonths.map(fm => {
+    const hc       = headcounts.find(h => h.month === fm.month)?.headcount ?? 0
+    const alloc    = calcAllocated(hc)
+    const actual   = expenseByMonth[fm.month] ?? 0
+    const rate     = calcExecutionRate(actual, alloc)
+    const status: StatusType = actual > 0 ? getExecutionStatus(rate, config) : 'green'
+    return { month: fm.month, headcount: hc, allocated: alloc, actual, executionRate: rate, status, label: fm.label, short: fm.shortLabel }
   })
+
+  const totalAllocated = monthlyData.reduce((s, m) => s + m.allocated, 0)
+  const totalActual    = monthlyData.reduce((s, m) => s + m.actual,    0)
+  const execRate       = calcExecutionRate(totalActual, totalAllocated)
+  const overallStatus: StatusType = totalActual > 0 ? getExecutionStatus(execRate, config) : 'green'
+
+  const chartData = monthlyData.map(m => ({
+    name: m.short,
+    배정: Math.round(m.allocated / 10000),
+    집행: Math.round(m.actual / 10000),
+  }))
+
+  if (loading) return (
+    <div className="flex items-center justify-center h-64">
+      <div className="w-8 h-8 border-2 border-toss-blue border-t-transparent rounded-full animate-spin" />
+    </div>
+  )
+  if (!team) return <div className="p-6 text-toss-gray-500">팀을 찾을 수 없어요.</div>
 
   return (
     <div>
-      <Header title={summary.team.name} subtitle="예산 및 인원 현황" />
+      <Header title={team.name} subtitle="월별 예산 현황" />
       <div className="p-6 space-y-6">
-
-        {/* Back + summary */}
         <div className="flex items-center gap-3">
           <button onClick={() => navigate(-1)} className="btn-ghost flex items-center gap-1 text-sm">
-            <ChevronLeft size={16} /> 목록
+            <ChevronLeft size={16} />목록
           </button>
+          {canEdit && (
+            <button onClick={() => navigate(`/expenses/${teamId}`)}
+              className="btn-secondary flex items-center gap-1.5 text-sm">
+              <ClipboardList size={15} />집행 항목 입력
+            </button>
+          )}
         </div>
 
-        {/* KPI cards */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {[
-            { label: '연간 배정 예산', value: formatKRW(summary.totalAllocated), sub: `인당 ${formatKRW(600_000)}` },
-            { label: '집행 금액', value: formatKRW(summary.totalActual), sub: '현재까지' },
-            { label: '잔여 예산', value: formatKRW(summary.totalAllocated - summary.totalActual), sub: '' },
-            { label: '집행률', value: `${summary.executionRate.toFixed(1)}%`, sub: '' },
+            { label: '연간 배정 예산', value: formatKRW(totalAllocated) },
+            { label: '집행 금액',      value: formatKRW(totalActual) },
+            { label: '잔여 예산',      value: formatKRW(totalAllocated - totalActual) },
+            { label: '집행률',         value: `${execRate.toFixed(1)}%` },
           ].map(k => (
             <div key={k.label} className="card">
               <p className="text-xs text-toss-gray-500">{k.label}</p>
               <p className="text-xl font-bold text-toss-gray-900 mt-1">{k.value}</p>
-              {k.sub && <p className="text-xs text-toss-gray-400 mt-0.5">{k.sub}</p>}
             </div>
           ))}
         </div>
 
-        {/* Chart */}
         <div className="card">
           <h2 className="text-sm font-semibold text-toss-gray-700 mb-4">월별 집행 추이 (만원)</h2>
           <ResponsiveContainer width="100%" height={200}>
@@ -106,10 +111,8 @@ export default function TeamDetailPage() {
               <CartesianGrid strokeDasharray="3 3" stroke="#F2F4F6" />
               <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#8B95A1' }} axisLine={false} tickLine={false} />
               <YAxis tick={{ fontSize: 11, fill: '#8B95A1' }} axisLine={false} tickLine={false} />
-              <Tooltip
-                contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.1)' }}
-                formatter={(v: number) => [`${v.toLocaleString()}만원`]}
-              />
+              <Tooltip contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.1)' }}
+                formatter={(v: number) => [`${v.toLocaleString()}만원`]} />
               <Legend wrapperStyle={{ fontSize: 12 }} />
               <Line type="monotone" dataKey="배정" stroke="#E6E8EB" strokeWidth={2} dot={false} />
               <Line type="monotone" dataKey="집행" stroke="#0064FF" strokeWidth={2.5} dot={{ r: 4, fill: '#0064FF' }} />
@@ -117,85 +120,45 @@ export default function TeamDetailPage() {
           </ResponsiveContainer>
         </div>
 
-        {/* Monthly table */}
         <div className="card p-0 overflow-hidden">
-          <div className="px-5 py-4 border-b border-toss-gray-100 flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-toss-gray-700">월별 상세 내역</h2>
-            {canEdit && (
-              <span className="text-xs text-toss-blue bg-toss-blue-bg px-2.5 py-1 rounded-full">
-                클릭하여 수정 가능
-              </span>
-            )}
+          <div className="px-5 py-4 border-b border-toss-gray-100">
+            <h2 className="text-sm font-semibold text-toss-gray-700">월별 상세</h2>
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[700px]">
+            <table className="w-full min-w-[600px]">
               <thead>
                 <tr className="border-b border-toss-gray-100 bg-toss-gray-50">
-                  {['월', '인원 (명)', '배정 예산', '집행 금액', '집행률', '상태'].map(h => (
-                    <th key={h} className="px-5 py-3 text-left text-xs font-semibold text-toss-gray-500">
-                      {h}
-                    </th>
+                  {['월','인원','배정 예산','집행 금액','집행률','상태'].map(h => (
+                    <th key={h} className="px-5 py-3 text-left text-xs font-semibold text-toss-gray-500">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody className="divide-y divide-toss-gray-100">
-                {fiscalMonths.map((fm, i) => {
-                  const md = summary.monthlyData[i]
-                  const hasData = md.actual > 0
-                  return (
-                    <tr key={fm.month} className="hover:bg-toss-gray-50 transition-colors">
-                      <td className="px-5 py-3.5 text-sm font-medium text-toss-gray-700">{fm.label}</td>
-                      <td className="px-5 py-3.5">
-                        {canEdit ? (
-                          <EditableCell
-                            value={md.headcount}
-                            onSave={v => updateHeadcount(teamId!, selectedFiscalYear, fm.month, v)}
-                          />
-                        ) : (
-                          <span className="text-sm text-toss-gray-900">{md.headcount}명</span>
-                        )}
-                      </td>
-                      <td className="px-5 py-3.5 text-sm text-toss-gray-700">{formatKRWFull(md.allocated)}</td>
-                      <td className="px-5 py-3.5">
-                        {canEdit ? (
-                          <EditableCell
-                            value={md.actual}
-                            onSave={v => updateActualAmount(teamId!, selectedFiscalYear, fm.month, v)}
-                          />
-                        ) : (
-                          <span className="text-sm text-toss-gray-900">{formatKRWFull(md.actual)}</span>
-                        )}
-                      </td>
-                      <td className="px-5 py-3.5 w-40">
-                        {hasData ? (
-                          <ProgressBar rate={md.executionRate} status={md.status} showLabel height={5} />
-                        ) : (
-                          <span className="text-xs text-toss-gray-400">미집행</span>
-                        )}
-                      </td>
-                      <td className="px-5 py-3.5">
-                        {hasData ? (
-                          <StatusBadge status={md.status} size="sm" />
-                        ) : (
-                          <span className="text-xs text-toss-gray-400">-</span>
-                        )}
-                      </td>
-                    </tr>
-                  )
-                })}
+                {monthlyData.map(m => (
+                  <tr key={m.month} className="hover:bg-toss-gray-50 cursor-pointer"
+                    onClick={() => canEdit && navigate(`/expenses/${teamId}`)}>
+                    <td className="px-5 py-3.5 text-sm font-medium text-toss-gray-700">{m.label}</td>
+                    <td className="px-5 py-3.5 text-sm">{m.headcount}명</td>
+                    <td className="px-5 py-3.5 text-sm text-toss-gray-700">{formatKRWFull(m.allocated)}</td>
+                    <td className="px-5 py-3.5 text-sm font-medium">{m.actual > 0 ? formatKRWFull(m.actual) : <span className="text-toss-gray-400">-</span>}</td>
+                    <td className="px-5 py-3.5 w-36">
+                      {m.actual > 0
+                        ? <ProgressBar rate={m.executionRate} status={m.status} showLabel height={5} />
+                        : <span className="text-xs text-toss-gray-400">미집행</span>}
+                    </td>
+                    <td className="px-5 py-3.5">
+                      {m.actual > 0 ? <StatusBadge status={m.status} size="sm" /> : <span className="text-xs text-toss-gray-400">-</span>}
+                    </td>
+                  </tr>
+                ))}
               </tbody>
               <tfoot>
                 <tr className="border-t-2 border-toss-gray-100 bg-toss-gray-50">
-                  <td className="px-5 py-3 text-sm font-bold text-toss-gray-900">합계</td>
-                  <td className="px-5 py-3 text-sm text-toss-gray-500">-</td>
-                  <td className="px-5 py-3 text-sm font-semibold text-toss-gray-700">{formatKRWFull(summary.totalAllocated)}</td>
-                  <td className="px-5 py-3 text-sm font-bold text-toss-gray-900">{formatKRWFull(summary.totalActual)}</td>
-                  <td className="px-5 py-3 w-40">
-                    <ProgressBar rate={summary.executionRate} status={summary.status} showLabel height={5} />
-                  </td>
-                  <td className="px-5 py-3">
-                    <StatusBadge status={summary.status} />
-                  </td>
+                  <td className="px-5 py-3 text-sm font-bold" colSpan={2}>합계</td>
+                  <td className="px-5 py-3 text-sm font-semibold">{formatKRWFull(totalAllocated)}</td>
+                  <td className="px-5 py-3 text-sm font-bold text-toss-blue">{formatKRWFull(totalActual)}</td>
+                  <td className="px-5 py-3 w-36"><ProgressBar rate={execRate} status={overallStatus} showLabel height={5} /></td>
+                  <td className="px-5 py-3"><StatusBadge status={overallStatus} /></td>
                 </tr>
               </tfoot>
             </table>

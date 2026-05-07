@@ -18,7 +18,22 @@
       "Bash(git init *)",
       "Bash(git remote *)",
       "Bash(git add *)",
-      "Bash(git commit -m ' *)"
+      "Bash(git commit -m ' *)",
+      "Bash(git branch *)",
+      "Bash(git push *)",
+      "Bash(git fetch *)",
+      "Bash(git checkout *)",
+      "Bash(gh pr create --repo LEE-JUN-HO/teammanager --base main --head feat/react-budget-system --title 'feat: React 기반 팀 예산관리 시스템으로 전면 교체' --body ' *)",
+      "Bash(git config *)",
+      "PowerShell($env:GITHUB_TOKEN; if \\(-not $env:GITHUB_TOKEN\\) { \"no token found\" })",
+      "PowerShell($env:GITHUB_TOKEN)",
+      "PowerShell(if \\(-not $env:GITHUB_TOKEN\\) { \"no token found\" })",
+      "Bash(powershell -Command \"[System.Net.NetworkCredential]::new\\('', \\(Get-StoredCredential -Target 'git:https://github.com'\\)\\).Password\")",
+      "Bash(git credential *)",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(d.get\\('html_url', d.get\\('message', 'error'\\)\\)\\)\")",
+      "Bash(git merge *)",
+      "Bash(git commit *)",
+      "WebFetch(domain:teammanager-phi.vercel.app)"
     ]
   }
 }

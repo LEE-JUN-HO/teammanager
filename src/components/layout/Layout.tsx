@@ -1,10 +1,17 @@
 import { Navigate, Outlet } from 'react-router-dom'
 import Sidebar from './Sidebar'
-import { useAppStore } from '../../store'
+import { useAuthStore } from '../../store/authStore'
 
 export default function Layout() {
-  const { currentUser } = useAppStore()
-  if (!currentUser) return <Navigate to="/login" replace />
+  const { session, loading } = useAuthStore()
+
+  if (loading) return (
+    <div className="min-h-screen flex items-center justify-center bg-toss-gray-50">
+      <div className="w-8 h-8 border-2 border-toss-blue border-t-transparent rounded-full animate-spin" />
+    </div>
+  )
+
+  if (!session) return <Navigate to="/login" replace />
 
   return (
     <div className="flex min-h-screen bg-toss-gray-50">
