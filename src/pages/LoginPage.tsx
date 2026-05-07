@@ -76,7 +76,7 @@ export default function LoginPage() {
               <Link to="/signup" className="text-toss-blue font-semibold hover:underline">회원가입</Link>
             </p>
             <p>
-              <Link to="/forgot-password" className="text-toss-gray-400 hover:text-toss-gray-600 hover:underline">
+              <Link to="/forgot-password" className="text-toss-gray-500 hover:text-toss-blue hover:underline transition-colors">
                 비밀번호를 잊으셨나요?
               </Link>
             </p>
