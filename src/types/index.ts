@@ -1,41 +1,48 @@
-export interface User {
+export interface UserProfile {
   id: string
   email: string
   name: string
   role: 'admin' | 'manager' | 'viewer'
-  teamId?: string
+  teamId: string | null
+  createdAt: string
 }
 
 export interface Team {
   id: string
   name: string
-  managerId: string
   color: string
+  createdAt: string
 }
 
 export interface MonthlyHeadcount {
+  id?: string
   teamId: string
-  fiscalYear: number  // e.g. 2025 means Feb 2025 ~ Jan 2026
-  month: number       // 2~12 = Feb~Dec of fiscalYear, 1 = Jan of fiscalYear+1
+  fiscalYear: number
+  month: number
   headcount: number
   note?: string
 }
 
-export interface BudgetEntry {
+export interface ExpenseItem {
   id: string
   teamId: string
   fiscalYear: number
   month: number
-  allocatedAmount: number   // headcount × 50,000
-  actualAmount: number
-  description?: string
+  seq: number
+  expenseDate: string     // YYYY-MM-DD
+  userName: string
+  category: string        // 항목
+  description: string     // 내용
+  amount: number
+  createdBy: string | null
+  createdAt: string
 }
 
 export interface TrafficLightConfig {
-  greenMin: number    // default 80
-  greenMax: number    // default 100
-  yellowLowMin: number  // default 60
-  yellowHighMax: number // default 120
+  greenMin: number
+  greenMax: number
+  yellowLowMin: number
+  yellowHighMax: number
 }
 
 export type StatusType = 'green' | 'yellow' | 'red'

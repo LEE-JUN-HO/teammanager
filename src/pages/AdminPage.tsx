@@ -1,207 +1,296 @@
-import { useState } from 'react'
-import { useAppStore } from '../store'
+import { useEffect, useState } from 'react'
+import { useAuthStore } from '../store/authStore'
+import * as db from '../lib/db'
 import Header from '../components/layout/Header'
 import { MONTHLY_BUDGET_PER_PERSON, formatKRW } from '../utils/budget'
-import { Check, AlertCircle, Plus, Trash2 } from 'lucide-react'
+import { Check, AlertCircle, Plus, Trash2, Save } from 'lucide-react'
 import { StatusDot } from '../components/ui/StatusBadge'
+import type { TrafficLightConfig, UserProfile, Team } from '../types'
 
-export default function AdminPage() {
-  const { trafficLightConfig, updateTrafficLightConfig, teams, addTeam, deleteTeam, currentUser } = useAppStore()
-  const [cfg, setCfg] = useState({ ...trafficLightConfig })
+// ─── Traffic Light Settings ────────────────────────────────
+function TrafficLightSection({ isAdmin }: { isAdmin: boolean }) {
+  const [cfg, setCfg] = useState<TrafficLightConfig>({ greenMin: 80, greenMax: 100, yellowLowMin: 60, yellowHighMax: 120 })
   const [saved, setSaved] = useState(false)
-  const [newTeam, setNewTeam] = useState({ name: '', color: '#0064FF' })
+  const [loading, setLoading] = useState(true)
 
-  const isAdmin = currentUser?.role === 'admin'
+  useEffect(() => {
+    db.getTrafficLightConfig().then(c => { setCfg(c); setLoading(false) })
+  }, [])
 
-  const handleSaveTrafficLight = () => {
-    updateTrafficLightConfig(cfg)
-    setSaved(true)
-    setTimeout(() => setSaved(false), 2000)
+  const save = async () => {
+    await db.updateTrafficLightConfig(cfg)
+    setSaved(true); setTimeout(() => setSaved(false), 2000)
   }
 
-  const thresholdItems = [
-    {
-      label: '정상 (녹색)',
-      desc: '예산이 계획대로 집행되는 상태',
-      color: 'green' as const,
-      fields: [
-        { key: 'greenMin', label: '최소' },
-        { key: 'greenMax', label: '최대' },
-      ],
-    },
-    {
-      label: '주의 (노란색)',
-      desc: '집행률이 정상 범위를 벗어난 상태',
-      color: 'yellow' as const,
-      fields: [
-        { key: 'yellowLowMin', label: '하한 최소' },
-        { key: 'yellowHighMax', label: '상한 최대' },
-      ],
-    },
-  ]
+  if (loading) return <div className="card animate-pulse h-48" />
+
+  return (
+    <div className="card">
+      <h2 className="font-bold text-toss-gray-900 mb-1">신호등 기준 설정</h2>
+      <p className="text-sm text-toss-gray-500 mb-5">집행률(%)에 따른 상태 색상 기준값이에요.</p>
+      <div className="space-y-4">
+        {[
+          { label: '정상 (녹색)', color: 'green' as const, desc: '계획대로 집행 중',
+            fields: [{ key: 'greenMin', label: '최소' }, { key: 'greenMax', label: '최대' }] },
+          { label: '주의 (노란색)', color: 'yellow' as const, desc: '정상 범위를 벗어남',
+            fields: [{ key: 'yellowLowMin', label: '하한 최소' }, { key: 'yellowHighMax', label: '상한 최대' }] },
+        ].map(item => (
+          <div key={item.label} className="bg-toss-gray-50 rounded-xl p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <StatusDot status={item.color} size={10} />
+              <span className="font-semibold text-sm">{item.label}</span>
+              <span className="text-xs text-toss-gray-500">{item.desc}</span>
+            </div>
+            <div className="flex gap-4">
+              {item.fields.map(f => (
+                <div key={f.key}>
+                  <label className="label text-xs">{f.label} (%)</label>
+                  <input type="number" min={0} max={200} disabled={!isAdmin} className="input w-24 text-sm"
+                    value={cfg[f.key as keyof TrafficLightConfig]}
+                    onChange={e => setCfg(p => ({ ...p, [f.key]: Number(e.target.value) }))} />
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="mt-4 flex items-center gap-3 flex-wrap text-sm text-toss-gray-600 bg-toss-gray-50 rounded-xl p-3">
+        {[
+          { s: 'red', label: `< ${cfg.yellowLowMin}%` },
+          { s: 'yellow', label: `${cfg.yellowLowMin}–${cfg.greenMin - 1}%` },
+          { s: 'green', label: `${cfg.greenMin}–${cfg.greenMax}%` },
+          { s: 'yellow', label: `${cfg.greenMax + 1}–${cfg.yellowHighMax}%` },
+          { s: 'red', label: `> ${cfg.yellowHighMax}%` },
+        ].map((x, i) => (
+          <div key={i} className="flex items-center gap-1.5">
+            <StatusDot status={x.s as 'red' | 'yellow' | 'green'} size={10} />
+            <span>{x.label}</span>
+          </div>
+        ))}
+      </div>
+      {isAdmin && (
+        <button onClick={save} className="btn-primary mt-5 flex items-center gap-2">
+          {saved ? <><Check size={16} />저장됨</> : <><Save size={16} />기준 저장</>}
+        </button>
+      )}
+    </div>
+  )
+}
+
+// ─── User Management ──────────────────────────────────────
+function UserManagementSection({ isAdmin, teams }: { isAdmin: boolean; teams: Team[] }) {
+  const [users, setUsers] = useState<UserProfile[]>([])
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState<string | null>(null)
+  const [edits, setEdits] = useState<Record<string, { role: string; teamId: string | null }>>({})
+
+  useEffect(() => {
+    db.getProfiles().then(u => { setUsers(u); setLoading(false) })
+  }, [])
+
+  const getEdit = (u: UserProfile) => edits[u.id] ?? { role: u.role, teamId: u.teamId }
+
+  const handleSave = async (u: UserProfile) => {
+    const e = getEdit(u)
+    setSaving(u.id)
+    await db.updateProfile(u.id, {
+      role: e.role,
+      teamId: e.role === 'manager' ? e.teamId : null,
+    })
+    setUsers(prev => prev.map(p => p.id === u.id
+      ? { ...p, role: e.role as UserProfile['role'], teamId: e.role === 'manager' ? e.teamId : null }
+      : p))
+    setSaving(null)
+  }
+
+  if (loading) return <div className="card animate-pulse h-48" />
+
+  return (
+    <div className="card p-0 overflow-hidden">
+      <div className="px-5 py-4 border-b border-toss-gray-100">
+        <h2 className="font-bold text-toss-gray-900">회원 관리</h2>
+        <p className="text-sm text-toss-gray-500 mt-0.5">가입 회원의 역할과 담당 팀을 설정하세요</p>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[600px]">
+          <thead>
+            <tr className="border-b border-toss-gray-100 bg-toss-gray-50">
+              {['이름', '이메일', '역할', '담당 팀', ''].map(h => (
+                <th key={h} className="px-5 py-3 text-left text-xs font-semibold text-toss-gray-500">{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-toss-gray-100">
+            {users.map(u => {
+              const e = getEdit(u)
+              const changed = e.role !== u.role || e.teamId !== u.teamId
+              return (
+                <tr key={u.id} className="hover:bg-toss-gray-50">
+                  <td className="px-5 py-3">
+                    <div className="flex items-center gap-2">
+                      <div className="w-7 h-7 rounded-full bg-toss-blue flex items-center justify-center text-white text-xs font-bold">
+                        {u.name[0]}
+                      </div>
+                      <span className="text-sm font-semibold">{u.name}</span>
+                    </div>
+                  </td>
+                  <td className="px-5 py-3 text-sm text-toss-gray-600">{u.email}</td>
+                  <td className="px-5 py-3">
+                    {isAdmin ? (
+                      <select className="input text-sm py-1.5 w-28"
+                        value={e.role}
+                        onChange={ev => setEdits(p => ({ ...p, [u.id]: { ...e, role: ev.target.value } }))}>
+                        <option value="viewer">viewer</option>
+                        <option value="manager">manager</option>
+                        <option value="admin">admin</option>
+                      </select>
+                    ) : (
+                      <span className={`px-2 py-1 rounded-lg text-xs font-semibold ${
+                        u.role === 'admin' ? 'bg-toss-blue-bg text-toss-blue' :
+                        u.role === 'manager' ? 'bg-purple-100 text-purple-700' :
+                        'bg-toss-gray-100 text-toss-gray-600'}`}>
+                        {u.role}
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-5 py-3">
+                    {isAdmin && e.role === 'manager' ? (
+                      <select className="input text-sm py-1.5 w-36"
+                        value={e.teamId ?? ''}
+                        onChange={ev => setEdits(p => ({ ...p, [u.id]: { ...e, teamId: ev.target.value || null } }))}>
+                        <option value="">팀 미배정</option>
+                        {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                      </select>
+                    ) : (
+                      <span className="text-sm text-toss-gray-600">
+                        {u.teamId ? teams.find(t => t.id === u.teamId)?.name ?? '-' : '-'}
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-5 py-3">
+                    {isAdmin && changed && (
+                      <button onClick={() => handleSave(u)} disabled={saving === u.id}
+                        className="btn-primary text-xs py-1.5 px-3 flex items-center gap-1">
+                        {saving === u.id
+                          ? <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                          : <Save size={12} />}
+                        저장
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
+// ─── Team Management ──────────────────────────────────────
+function TeamManagementSection({ isAdmin, teams, setTeams }: {
+  isAdmin: boolean; teams: Team[]; setTeams: (t: Team[]) => void
+}) {
+  const [newTeam, setNewTeam] = useState({ name: '', color: '#0064FF' })
+  const [saving, setSaving] = useState(false)
+
+  const handleAdd = async () => {
+    if (!newTeam.name.trim()) return
+    setSaving(true)
+    const t = await db.addTeam({ name: newTeam.name.trim(), color: newTeam.color })
+    setTeams([...teams, t])
+    setNewTeam({ name: '', color: '#0064FF' })
+    setSaving(false)
+  }
+
+  const handleDelete = async (id: string, name: string) => {
+    if (!confirm(`"${name}"을 삭제할까요? 관련 예산 데이터도 모두 삭제됩니다.`)) return
+    await db.deleteTeam(id)
+    setTeams(teams.filter(t => t.id !== id))
+  }
+
+  return (
+    <div className="card">
+      <h2 className="font-bold text-toss-gray-900 mb-1">팀 관리</h2>
+      <p className="text-sm text-toss-gray-500 mb-4">팀을 추가하거나 삭제할 수 있어요.</p>
+      <div className="space-y-2 mb-4">
+        {teams.map(t => (
+          <div key={t.id} className="flex items-center justify-between bg-toss-gray-50 rounded-xl px-4 py-3">
+            <div className="flex items-center gap-3">
+              <div className="w-3 h-3 rounded-full" style={{ backgroundColor: t.color }} />
+              <span className="text-sm font-semibold">{t.name}</span>
+            </div>
+            {isAdmin && (
+              <button onClick={() => handleDelete(t.id, t.name)}
+                className="text-toss-gray-400 hover:text-status-red transition-colors">
+                <Trash2 size={15} />
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
+      {isAdmin && (
+        <div className="border border-toss-gray-200 rounded-xl p-4 space-y-3">
+          <p className="text-xs font-semibold text-toss-gray-600">새 팀 추가</p>
+          <div className="flex gap-3">
+            <input className="input flex-1" placeholder="팀 이름"
+              value={newTeam.name} onChange={e => setNewTeam(p => ({ ...p, name: e.target.value }))} />
+            <div className="flex items-center gap-2">
+              <label className="text-xs text-toss-gray-500">색상</label>
+              <input type="color" value={newTeam.color}
+                onChange={e => setNewTeam(p => ({ ...p, color: e.target.value }))}
+                className="w-9 h-9 rounded-lg border border-toss-gray-200 cursor-pointer" />
+            </div>
+            <button disabled={!newTeam.name.trim() || saving} onClick={handleAdd}
+              className="btn-primary flex items-center gap-1.5 whitespace-nowrap">
+              <Plus size={15} />추가
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Main Admin Page ──────────────────────────────────────
+export default function AdminPage() {
+  const { profile } = useAuthStore()
+  const [teams, setTeams] = useState<Team[]>([])
+  const isAdmin = profile?.role === 'admin'
+
+  useEffect(() => { db.getTeams().then(setTeams) }, [])
 
   return (
     <div>
-      <Header title="관리자 설정" subtitle="신호등 기준, 팀 관리 등" />
+      <Header title="관리자 설정" subtitle="신호등 기준, 회원 관리, 팀 관리" />
       <div className="p-6 space-y-6">
-
         {!isAdmin && (
           <div className="flex items-center gap-2 bg-status-yellow-bg text-amber-700 px-4 py-3 rounded-xl text-sm">
-            <AlertCircle size={16} />
-            관리자 권한이 있는 계정으로 로그인해야 설정을 변경할 수 있어요.
+            <AlertCircle size={16} />관리자 권한이 있는 계정으로 로그인해야 설정을 변경할 수 있어요.
           </div>
         )}
 
-        {/* Traffic light settings */}
+        {/* Budget base info */}
         <div className="card">
-          <h2 className="font-bold text-toss-gray-900 mb-1">신호등 기준 설정</h2>
-          <p className="text-sm text-toss-gray-500 mb-5">
-            집행률(%)에 따라 상태 색상을 결정하는 기준값이에요. 나머지 범위는 자동으로 빨간색(위험)이 됩니다.
-          </p>
-
-          <div className="space-y-5">
-            {thresholdItems.map(item => (
-              <div key={item.label} className="bg-toss-gray-50 rounded-xl p-4">
-                <div className="flex items-center gap-2 mb-3">
-                  <StatusDot status={item.color} size={10} />
-                  <span className="font-semibold text-sm text-toss-gray-800">{item.label}</span>
-                  <span className="text-xs text-toss-gray-500">{item.desc}</span>
-                </div>
-                <div className="flex gap-4">
-                  {item.fields.map(f => (
-                    <div key={f.key}>
-                      <label className="label text-xs">{f.label} (%)</label>
-                      <input
-                        type="number"
-                        min={0}
-                        max={200}
-                        disabled={!isAdmin}
-                        className="input w-24 text-sm"
-                        value={cfg[f.key as keyof typeof cfg]}
-                        onChange={e => setCfg(prev => ({ ...prev, [f.key]: Number(e.target.value) }))}
-                      />
-                    </div>
-                  ))}
-                </div>
+          <h2 className="font-bold text-toss-gray-900 mb-4">예산 기준</h2>
+          <div className="flex flex-wrap gap-6">
+            {[
+              { label: '인당 월 예산', value: formatKRW(MONTHLY_BUDGET_PER_PERSON) },
+              { label: '인당 연간 예산', value: formatKRW(MONTHLY_BUDGET_PER_PERSON * 12) },
+              { label: '예산 기간', value: '2월 ~ 익년 1월' },
+            ].map(k => (
+              <div key={k.label} className="bg-toss-gray-50 rounded-xl px-4 py-3">
+                <p className="text-xs text-toss-gray-500">{k.label}</p>
+                <p className="text-lg font-bold text-toss-gray-900 mt-0.5">{k.value}</p>
               </div>
             ))}
           </div>
-
-          {/* Preview */}
-          <div className="mt-5 p-4 bg-toss-gray-50 rounded-xl">
-            <p className="text-xs font-semibold text-toss-gray-600 mb-3">미리보기</p>
-            <div className="flex flex-wrap gap-3 text-sm">
-              <div className="flex items-center gap-2">
-                <StatusDot status="red" size={10} />
-                <span className="text-toss-gray-600">&lt; {cfg.yellowLowMin}%</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <StatusDot status="yellow" size={10} />
-                <span className="text-toss-gray-600">{cfg.yellowLowMin}% ~ {cfg.greenMin - 1}%</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <StatusDot status="green" size={10} />
-                <span className="text-toss-gray-600">{cfg.greenMin}% ~ {cfg.greenMax}%</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <StatusDot status="yellow" size={10} />
-                <span className="text-toss-gray-600">{cfg.greenMax + 1}% ~ {cfg.yellowHighMax}%</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <StatusDot status="red" size={10} />
-                <span className="text-toss-gray-600">&gt; {cfg.yellowHighMax}%</span>
-              </div>
-            </div>
-          </div>
-
-          {isAdmin && (
-            <button onClick={handleSaveTrafficLight} className="btn-primary mt-5 flex items-center gap-2">
-              {saved ? <><Check size={16} /> 저장됨</> : '기준 저장'}
-            </button>
-          )}
         </div>
 
-        {/* Budget per person */}
-        <div className="card">
-          <h2 className="font-bold text-toss-gray-900 mb-1">예산 기준</h2>
-          <p className="text-sm text-toss-gray-500 mb-4">인당 월 예산 단가 (현재 고정값)</p>
-          <div className="flex items-center gap-4 bg-toss-gray-50 rounded-xl p-4">
-            <div>
-              <p className="text-xs text-toss-gray-500">인당 월 예산</p>
-              <p className="text-lg font-bold text-toss-gray-900">{formatKRW(MONTHLY_BUDGET_PER_PERSON)}</p>
-            </div>
-            <div className="w-px h-10 bg-toss-gray-200" />
-            <div>
-              <p className="text-xs text-toss-gray-500">인당 연간 예산</p>
-              <p className="text-lg font-bold text-toss-gray-900">{formatKRW(MONTHLY_BUDGET_PER_PERSON * 12)}</p>
-            </div>
-            <div className="w-px h-10 bg-toss-gray-200" />
-            <div>
-              <p className="text-xs text-toss-gray-500">예산 기간</p>
-              <p className="text-lg font-bold text-toss-gray-900">2월 ~ 익년 1월</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Team management */}
-        <div className="card">
-          <h2 className="font-bold text-toss-gray-900 mb-1">팀 관리</h2>
-          <p className="text-sm text-toss-gray-500 mb-4">팀을 추가하거나 삭제할 수 있어요.</p>
-
-          <div className="space-y-2 mb-4">
-            {teams.map(t => (
-              <div key={t.id} className="flex items-center justify-between bg-toss-gray-50 rounded-xl px-4 py-3">
-                <div className="flex items-center gap-3">
-                  <div className="w-3 h-3 rounded-full" style={{ backgroundColor: t.color }} />
-                  <span className="text-sm font-semibold text-toss-gray-900">{t.name}</span>
-                </div>
-                {isAdmin && (
-                  <button
-                    onClick={() => {
-                      if (confirm(`"${t.name}"을 삭제할까요?`)) deleteTeam(t.id)
-                    }}
-                    className="text-toss-gray-400 hover:text-status-red transition-colors"
-                  >
-                    <Trash2 size={15} />
-                  </button>
-                )}
-              </div>
-            ))}
-          </div>
-
-          {isAdmin && (
-            <div className="border border-toss-gray-200 rounded-xl p-4 space-y-3">
-              <p className="text-xs font-semibold text-toss-gray-600">새 팀 추가</p>
-              <div className="flex gap-3">
-                <input
-                  className="input flex-1"
-                  placeholder="팀 이름"
-                  value={newTeam.name}
-                  onChange={e => setNewTeam(p => ({ ...p, name: e.target.value }))}
-                />
-                <div className="flex items-center gap-2">
-                  <label className="text-xs text-toss-gray-500">색상</label>
-                  <input
-                    type="color"
-                    value={newTeam.color}
-                    onChange={e => setNewTeam(p => ({ ...p, color: e.target.value }))}
-                    className="w-9 h-9 rounded-lg border border-toss-gray-200 cursor-pointer"
-                  />
-                </div>
-                <button
-                  disabled={!newTeam.name.trim()}
-                  onClick={() => {
-                    addTeam({ name: newTeam.name.trim(), managerId: '', color: newTeam.color })
-                    setNewTeam({ name: '', color: '#0064FF' })
-                  }}
-                  className="btn-primary flex items-center gap-1.5 whitespace-nowrap"
-                >
-                  <Plus size={15} /> 추가
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
+        <TrafficLightSection isAdmin={isAdmin} />
+        <UserManagementSection isAdmin={isAdmin} teams={teams} />
+        <TeamManagementSection isAdmin={isAdmin} teams={teams} setTeams={setTeams} />
       </div>
     </div>
   )
