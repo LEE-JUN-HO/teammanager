@@ -1,0 +1,11 @@
+{
+  "name": "team-budget-manager",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Responsive team budget management and monitoring prototype.",
+  "scripts": {
+    "start": "python3 -m http.server 4173",
+    "test": "node tests/budget-calculations.test.js"
+  },
+  "type": "module"
+}
