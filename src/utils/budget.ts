@@ -2,6 +2,13 @@ import type { StatusType, TrafficLightConfig, FiscalMonth } from '../types'
 
 export const MONTHLY_BUDGET_PER_PERSON = 50_000
 
+/** 모든 페이지에서 공유하는 기본 설정값 — Supabase 로딩 전 폴백용 */
+export const DEFAULT_CONFIG: TrafficLightConfig = {
+  greenMin: 80, greenMax: 100,
+  yellowLowMin: 60, yellowHighMax: 120,
+  budgetPerPerson: MONTHLY_BUDGET_PER_PERSON,
+}
+
 export function getExecutionStatus(rate: number, config: TrafficLightConfig): StatusType {
   if (rate >= config.greenMin && rate <= config.greenMax) return 'green'
   if (
@@ -12,8 +19,8 @@ export function getExecutionStatus(rate: number, config: TrafficLightConfig): St
   return 'red'
 }
 
-export function calcAllocated(headcount: number): number {
-  return headcount * MONTHLY_BUDGET_PER_PERSON
+export function calcAllocated(headcount: number, budgetPerPerson = MONTHLY_BUDGET_PER_PERSON): number {
+  return headcount * budgetPerPerson
 }
 
 export function calcExecutionRate(actual: number, allocated: number): number {

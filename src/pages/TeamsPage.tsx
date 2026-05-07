@@ -20,10 +20,13 @@ export default function TeamsPage() {
 
   async function load() {
     setLoading(true)
-    const cfg: TrafficLightConfig = await db.getTrafficLightConfig()
-    const data = await db.getTeamBudgetSummaries(selectedFiscalYear, cfg)
-    setSummaries(data)
-    setLoading(false)
+    try {
+      const cfg: TrafficLightConfig = await db.getTrafficLightConfig()
+      const data = await db.getTeamBudgetSummaries(selectedFiscalYear, cfg)
+      setSummaries(data)
+    } finally {
+      setLoading(false)
+    }
   }
 
   if (loading) return (

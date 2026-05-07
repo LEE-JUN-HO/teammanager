@@ -25,14 +25,16 @@ export default function ExpensePage() {
 
   async function load() {
     setLoading(true)
-    const cfg = await db.getTrafficLightConfig()
-    const data = await db.getTeamBudgetSummaries(selectedFiscalYear, cfg)
-    // manager만 자기 팀, admin은 전체
-    const filtered = profile?.role === 'manager'
-      ? data.filter(s => s.team.id === profile.teamId)
-      : data
-    setSummaries(filtered)
-    setLoading(false)
+    try {
+      const cfg = await db.getTrafficLightConfig()
+      const data = await db.getTeamBudgetSummaries(selectedFiscalYear, cfg)
+      const filtered = profile?.role === 'manager'
+        ? data.filter(s => s.team.id === profile.teamId)
+        : data
+      setSummaries(filtered)
+    } finally {
+      setLoading(false)
+    }
   }
 
   if (loading) return (

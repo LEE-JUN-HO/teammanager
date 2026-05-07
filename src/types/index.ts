@@ -46,6 +46,7 @@ export interface TrafficLightConfig {
   greenMax: number
   yellowLowMin: number
   yellowHighMax: number
+  budgetPerPerson: number  // 인당 월 예산 (원)
 }
 
 export type StatusType = 'green' | 'yellow' | 'red'

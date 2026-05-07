@@ -4,7 +4,7 @@ import { useAppStore } from '../store/appStore'
 import { useAuthStore } from '../store/authStore'
 import * as db from '../lib/db'
 import Header from '../components/layout/Header'
-import { getFiscalMonths, formatKRWFull, calcAllocated } from '../utils/budget'
+import { getFiscalMonths, formatKRWFull, calcAllocated, DEFAULT_CONFIG } from '../utils/budget'
 import StatusBadge from '../components/ui/StatusBadge'
 import ProgressBar from '../components/ui/ProgressBar'
 import { getExecutionStatus, calcExecutionRate } from '../utils/budget'
@@ -30,7 +30,7 @@ export default function ExpenseTeamPage() {
   const [team, setTeam] = useState<Team | null>(null)
   const [items, setItems] = useState<ExpenseItem[]>([])
   const [headcounts, setHeadcounts] = useState<MonthlyHeadcount[]>([])
-  const [config, setConfig] = useState<TrafficLightConfig>({ greenMin: 80, greenMax: 100, yellowLowMin: 60, yellowHighMax: 120 })
+  const [config, setConfig] = useState<TrafficLightConfig>(DEFAULT_CONFIG)
   const [selectedMonth, setSelectedMonth] = useState<number | 'all'>('all')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -50,17 +50,20 @@ export default function ExpenseTeamPage() {
   async function load() {
     if (!teamId) return
     setLoading(true)
-    const [teams, expItems, hcs, cfg] = await Promise.all([
-      db.getTeams(),
-      db.getExpenseItems(teamId, selectedFiscalYear),
-      db.getHeadcounts(selectedFiscalYear),
-      db.getTrafficLightConfig(),
-    ])
-    setTeam(teams.find(t => t.id === teamId) ?? null)
-    setItems(expItems)
-    setHeadcounts(hcs.filter(h => h.teamId === teamId))
-    setConfig(cfg)
-    setLoading(false)
+    try {
+      const [teams, expItems, hcs, cfg] = await Promise.all([
+        db.getTeams(),
+        db.getExpenseItems(teamId, selectedFiscalYear),
+        db.getHeadcounts(selectedFiscalYear),
+        db.getTrafficLightConfig(),
+      ])
+      setTeam(teams.find(t => t.id === teamId) ?? null)
+      setItems(expItems)
+      setHeadcounts(hcs.filter(h => h.teamId === teamId))
+      setConfig(cfg)
+    } finally {
+      setLoading(false)
+    }
   }
 
   const filteredItems = selectedMonth === 'all'
@@ -70,7 +73,7 @@ export default function ExpenseTeamPage() {
   // compute month summary
   function monthSummary(month: number) {
     const hc = headcounts.find(h => h.month === month)?.headcount ?? 0
-    const allocated = calcAllocated(hc)
+    const allocated = calcAllocated(hc, config.budgetPerPerson)
     const actual = items.filter(i => i.month === month).reduce((s, i) => s + i.amount, 0)
     const rate = calcExecutionRate(actual, allocated)
     const status = actual > 0 ? getExecutionStatus(rate, config) : 'green' as const

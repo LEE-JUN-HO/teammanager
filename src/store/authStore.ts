@@ -40,10 +40,13 @@ export const useAuthStore = create<AuthState>((set) => ({
         return
       }
       set({ session })
-      if (session?.user) {
-        const profile = await getCurrentProfile(session.user.id)
-        set({ profile })
-      } else {
+      // 프로필 재조회는 실제 로그인/로그아웃 시에만 수행 (TOKEN_REFRESHED 등 제외)
+      if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
+        if (session?.user) {
+          const profile = await getCurrentProfile(session.user.id)
+          set({ profile })
+        }
+      } else if (event === 'SIGNED_OUT') {
         set({ profile: null })
       }
     })
