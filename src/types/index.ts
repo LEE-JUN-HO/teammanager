@@ -19,7 +19,10 @@ export interface MonthlyHeadcount {
   teamId: string
   fiscalYear: number
   month: number
-  headcount: number
+  beginHeadcount: number  // 기초인원
+  newHires: number        // 입사자
+  departures: number      // 퇴사자
+  headcount: number       // 기말인원 (= 기초 + 입사 - 퇴사)
   note?: string
 }
 
