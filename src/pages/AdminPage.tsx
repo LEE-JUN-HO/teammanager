@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
 import * as db from '../lib/db'
 import Header from '../components/layout/Header'
@@ -256,8 +257,13 @@ function TeamManagementSection({ isAdmin, teams, setTeams }: {
 // ─── Main Admin Page ──────────────────────────────────────
 export default function AdminPage() {
   const { profile } = useAuthStore()
+  const navigate = useNavigate()
   const [teams, setTeams] = useState<Team[]>([])
   const isAdmin = profile?.role === 'admin'
+
+  useEffect(() => {
+    if (profile && profile.role !== 'admin') navigate('/dashboard', { replace: true })
+  }, [profile])
 
   useEffect(() => { db.getTeams().then(setTeams) }, [])
 

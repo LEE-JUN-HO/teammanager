@@ -6,10 +6,10 @@ import { useAppStore } from '../../store/appStore'
 import clsx from 'clsx'
 
 const navItems = [
-  { to: '/dashboard', icon: LayoutDashboard, label: '전체 현황' },
-  { to: '/teams',     icon: Users,           label: '팀별 예산' },
-  { to: '/expenses',  icon: ClipboardList,   label: '예산 집행 입력' },
-  { to: '/admin',     icon: Settings,        label: '관리자 설정', adminOnly: false },
+  { to: '/dashboard', icon: LayoutDashboard, label: '전체 현황',    role: 'all' },
+  { to: '/teams',     icon: Users,           label: '팀별 예산',    role: 'all' },
+  { to: '/expenses',  icon: ClipboardList,   label: '예산 집행 입력', role: 'manager' },
+  { to: '/admin',     icon: Settings,        label: '관리자 설정',  role: 'admin' },
 ]
 
 function NavItem({ to, icon: Icon, label, onClick }: {
@@ -52,9 +52,16 @@ export default function Sidebar() {
       <div className="mx-4 h-px bg-toss-gray-100 mb-4" />
 
       <nav className="px-3 flex-1 space-y-1">
-        {navItems.map(item => (
-          <NavItem key={item.to} {...item} onClick={onNav} />
-        ))}
+        {navItems
+          .filter(item => {
+            if (item.role === 'all') return true
+            if (item.role === 'manager') return profile?.role === 'admin' || profile?.role === 'manager'
+            if (item.role === 'admin')   return profile?.role === 'admin'
+            return true
+          })
+          .map(item => (
+            <NavItem key={item.to} {...item} onClick={onNav} />
+          ))}
       </nav>
 
       <div className="p-4 mt-4">
