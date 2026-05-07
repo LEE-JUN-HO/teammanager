@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
+import { useAppStore } from '../store/appStore'
 import * as db from '../lib/db'
 import Header from '../components/layout/Header'
-import { MONTHLY_BUDGET_PER_PERSON, formatKRW } from '../utils/budget'
+import { MONTHLY_BUDGET_PER_PERSON, formatKRW, getFiscalMonths } from '../utils/budget'
 import { Check, AlertCircle, Plus, Trash2, Save } from 'lucide-react'
 import { StatusDot } from '../components/ui/StatusBadge'
-import type { TrafficLightConfig, UserProfile, Team } from '../types'
+import type { TrafficLightConfig, UserProfile, Team, MonthlyHeadcount } from '../types'
 
 // ─── Traffic Light Settings ────────────────────────────────
 function TrafficLightSection({ isAdmin }: { isAdmin: boolean }) {
@@ -189,6 +190,155 @@ function UserManagementSection({ isAdmin, teams }: { isAdmin: boolean; teams: Te
   )
 }
 
+// ─── Headcount Management ─────────────────────────────────
+interface HcRow { beginHeadcount: number; newHires: number; departures: number }
+
+function HeadcountManagementSection({ teams }: { teams: Team[] }) {
+  const { selectedFiscalYear } = useAppStore()
+  const [selectedTeamId, setSelectedTeamId] = useState<string>('')
+  const [headcounts, setHeadcounts] = useState<MonthlyHeadcount[]>([])
+  const [edits, setEdits] = useState<Record<number, HcRow>>({})
+  const [saving, setSaving] = useState<number | null>(null)
+  const [saved, setSaved] = useState<number | null>(null)
+  const fiscalMonths = getFiscalMonths(selectedFiscalYear)
+
+  useEffect(() => {
+    if (teams.length > 0 && !selectedTeamId) setSelectedTeamId(teams[0].id)
+  }, [teams])
+
+  useEffect(() => {
+    if (!selectedTeamId) return
+    db.getHeadcounts(selectedFiscalYear).then(all => {
+      setHeadcounts(all.filter(h => h.teamId === selectedTeamId))
+      setEdits({})
+    })
+  }, [selectedTeamId, selectedFiscalYear])
+
+  function getRow(month: number): HcRow {
+    if (edits[month]) return edits[month]
+    const hc = headcounts.find(h => h.month === month)
+    return { beginHeadcount: hc?.beginHeadcount ?? 0, newHires: hc?.newHires ?? 0, departures: hc?.departures ?? 0 }
+  }
+
+  function calcEnd(row: HcRow) { return Math.max(0, row.beginHeadcount + row.newHires - row.departures) }
+
+  function setField(month: number, field: keyof HcRow, value: number) {
+    setEdits(prev => ({ ...prev, [month]: { ...getRow(month), [field]: Math.max(0, value) } }))
+  }
+
+  function isChanged(month: number) {
+    const hc = headcounts.find(h => h.month === month)
+    const row = edits[month]
+    if (!row) return false
+    return row.beginHeadcount !== (hc?.beginHeadcount ?? 0) ||
+           row.newHires !== (hc?.newHires ?? 0) ||
+           row.departures !== (hc?.departures ?? 0)
+  }
+
+  async function handleSave(month: number) {
+    if (!selectedTeamId) return
+    const row = getRow(month)
+    const endHc = calcEnd(row)
+    setSaving(month)
+    await db.upsertHeadcount(selectedTeamId, selectedFiscalYear, month, endHc,
+      row.beginHeadcount, row.newHires, row.departures)
+    setHeadcounts(prev => {
+      const next = prev.filter(h => h.month !== month)
+      return [...next, { teamId: selectedTeamId, fiscalYear: selectedFiscalYear, month,
+        beginHeadcount: row.beginHeadcount, newHires: row.newHires, departures: row.departures,
+        headcount: endHc }]
+    })
+    setEdits(prev => { const n = { ...prev }; delete n[month]; return n })
+    setSaving(null)
+    setSaved(month)
+    setTimeout(() => setSaved(null), 1500)
+  }
+
+  const totalEnd = fiscalMonths.reduce((s, fm) => s + calcEnd(getRow(fm.month)), 0)
+  const totalBudget = fiscalMonths.reduce((s, fm) => s + calcEnd(getRow(fm.month)) * MONTHLY_BUDGET_PER_PERSON, 0)
+
+  return (
+    <div className="card p-0 overflow-hidden">
+      <div className="px-5 py-4 border-b border-toss-gray-100 flex items-center justify-between flex-wrap gap-3">
+        <div>
+          <h2 className="font-bold text-toss-gray-900">월별 인원 관리</h2>
+          <p className="text-sm text-toss-gray-500 mt-0.5">기초인원 · 입사자 · 퇴사자를 입력하면 기말인원과 배정예산이 자동 계산됩니다</p>
+        </div>
+        <select className="input w-40 text-sm"
+          value={selectedTeamId} onChange={e => setSelectedTeamId(e.target.value)}>
+          {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+        </select>
+      </div>
+
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[720px]">
+          <thead>
+            <tr className="border-b border-toss-gray-100 bg-toss-gray-50">
+              {['월', '기초인원', '입사자', '퇴사자', '기말인원', '배정예산', ''].map(h => (
+                <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-toss-gray-500 whitespace-nowrap">{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-toss-gray-100">
+            {fiscalMonths.map(fm => {
+              const row = getRow(fm.month)
+              const endHc = calcEnd(row)
+              const budget = endHc * MONTHLY_BUDGET_PER_PERSON
+              const changed = isChanged(fm.month)
+              const isSaving = saving === fm.month
+              const isSaved  = saved  === fm.month
+
+              const inputCls = "input w-20 py-1.5 text-sm text-center"
+              return (
+                <tr key={fm.month} className="hover:bg-toss-gray-50 transition-colors">
+                  <td className="px-4 py-3 text-sm font-medium text-toss-gray-700 whitespace-nowrap">{fm.shortLabel}</td>
+                  <td className="px-3 py-2">
+                    <input type="number" min={0} className={inputCls} value={row.beginHeadcount}
+                      onChange={e => setField(fm.month, 'beginHeadcount', Number(e.target.value))} />
+                  </td>
+                  <td className="px-3 py-2">
+                    <input type="number" min={0} className={inputCls} value={row.newHires}
+                      onChange={e => setField(fm.month, 'newHires', Number(e.target.value))} />
+                  </td>
+                  <td className="px-3 py-2">
+                    <input type="number" min={0} className={inputCls} value={row.departures}
+                      onChange={e => setField(fm.month, 'departures', Number(e.target.value))} />
+                  </td>
+                  <td className="px-4 py-3 text-sm font-bold text-toss-blue">{endHc}명</td>
+                  <td className="px-4 py-3 text-sm text-toss-gray-600">{formatKRW(budget)}</td>
+                  <td className="px-4 py-3">
+                    {isSaved ? (
+                      <span className="flex items-center gap-1 text-xs text-status-green font-semibold"><Check size={13} />저장됨</span>
+                    ) : (
+                      <button onClick={() => handleSave(fm.month)}
+                        disabled={!changed || isSaving}
+                        className={`flex items-center gap-1 text-xs px-3 py-1.5 rounded-lg font-semibold transition-all ${
+                          changed ? 'bg-toss-blue text-white hover:bg-toss-blue-dark' : 'bg-toss-gray-100 text-toss-gray-400 cursor-default'}`}>
+                        {isSaving
+                          ? <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                          : <Save size={12} />}
+                        저장
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+          <tfoot>
+            <tr className="border-t-2 border-toss-gray-200 bg-toss-gray-50">
+              <td className="px-4 py-3 text-sm font-bold" colSpan={4}>연간 합계</td>
+              <td className="px-4 py-3 text-sm font-bold text-toss-blue">{totalEnd}명</td>
+              <td className="px-4 py-3 text-sm font-bold text-toss-gray-900">{formatKRW(totalBudget)}</td>
+              <td />
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+  )
+}
+
 // ─── Team Management ──────────────────────────────────────
 function TeamManagementSection({ isAdmin, teams, setTeams }: {
   isAdmin: boolean; teams: Team[]; setTeams: (t: Team[]) => void
@@ -294,6 +444,7 @@ export default function AdminPage() {
           </div>
         </div>
 
+        <HeadcountManagementSection teams={teams} />
         <TrafficLightSection isAdmin={isAdmin} />
         <UserManagementSection isAdmin={isAdmin} teams={teams} />
         <TeamManagementSection isAdmin={isAdmin} teams={teams} setTeams={setTeams} />

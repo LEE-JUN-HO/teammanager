@@ -73,15 +73,27 @@ export async function getHeadcounts(fiscalYear: number): Promise<MonthlyHeadcoun
   if (error) throw error
   return (data ?? []).map(r => ({
     id: r.id, teamId: r.team_id, fiscalYear: r.fiscal_year,
-    month: r.month, headcount: r.headcount, note: r.note ?? undefined,
+    month: r.month,
+    beginHeadcount: r.begin_headcount ?? 0,
+    newHires: r.new_hires ?? 0,
+    departures: r.departures ?? 0,
+    headcount: r.headcount,
+    note: r.note ?? undefined,
   }))
 }
 
 export async function upsertHeadcount(
-  teamId: string, fiscalYear: number, month: number, headcount: number, note?: string
+  teamId: string, fiscalYear: number, month: number,
+  headcount: number,
+  beginHeadcount = 0, newHires = 0, departures = 0,
+  note?: string
 ): Promise<void> {
   const { error } = await supabase.from('monthly_headcounts').upsert({
-    team_id: teamId, fiscal_year: fiscalYear, month, headcount,
+    team_id: teamId, fiscal_year: fiscalYear, month,
+    headcount,
+    begin_headcount: beginHeadcount,
+    new_hires: newHires,
+    departures,
     note: note ?? null,
     updated_by: (await supabase.auth.getUser()).data.user?.id,
     updated_at: new Date().toISOString(),

@@ -22,7 +22,6 @@ export default function TeamDetailPage() {
   const [expenseByMonth, setExpenseByMonth] = useState<Record<number, number>>({})
   const [config, setConfig] = useState<TrafficLightConfig>({ greenMin: 80, greenMax: 100, yellowLowMin: 60, yellowHighMax: 120 })
   const [loading, setLoading] = useState(true)
-  const [hcEdits, setHcEdits] = useState<Record<number, string>>({})
 
   const canEdit = profile?.role === 'admin' || (profile?.role === 'manager' && profile?.teamId === teamId)
 
@@ -140,23 +139,20 @@ export default function TeamDetailPage() {
                     onClick={() => canEdit && navigate(`/expenses/${teamId}`)}>
                     <td className="px-5 py-3.5 text-sm font-medium text-toss-gray-700">{m.label}</td>
                     <td className="px-5 py-3.5 text-sm">
-                      {canEdit ? (
-                        <input
-                          type="number" min={0}
-                          className="input w-20 py-1 text-sm text-center"
-                          value={hcEdits[m.month] ?? m.headcount}
-                          onChange={e => setHcEdits(prev => ({ ...prev, [m.month]: e.target.value }))}
-                          onBlur={async () => {
-                            const val = Number(hcEdits[m.month])
-                            if (hcEdits[m.month] !== undefined && val !== m.headcount && !isNaN(val)) {
-                              await db.upsertHeadcount(teamId!, selectedFiscalYear, m.month, val)
-                              load()
-                            }
-                          }}
-                        />
-                      ) : (
-                        <span>{m.headcount}명</span>
-                      )}
+                      {(() => {
+                        const hc = headcounts.find(h => h.month === m.month)
+                        const hasDetail = hc && (hc.beginHeadcount > 0 || hc.newHires > 0 || hc.departures > 0)
+                        return (
+                          <div>
+                            <span className="font-medium">{m.headcount}명</span>
+                            {hasDetail && (
+                              <p className="text-[10px] text-toss-gray-400 mt-0.5">
+                                기초 {hc.beginHeadcount} +{hc.newHires} -{hc.departures}
+                              </p>
+                            )}
+                          </div>
+                        )
+                      })()}
                     </td>
                     <td className="px-5 py-3.5 text-sm text-toss-gray-700">{formatKRWFull(m.allocated)}</td>
                     <td className="px-5 py-3.5 text-sm font-medium">{m.actual > 0 ? formatKRWFull(m.actual) : <span className="text-toss-gray-400">-</span>}</td>
