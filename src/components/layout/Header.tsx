@@ -1,13 +1,20 @@
 import { ChevronDown } from 'lucide-react'
 import { useAppStore } from '../../store/appStore'
 import { useAuthStore } from '../../store/authStore'
+import { getCurrentFiscalYear } from '../../utils/budget'
+
+const SYSTEM_START_YEAR = 2026
 
 interface Props { title: string; subtitle?: string }
 
 export default function Header({ title, subtitle }: Props) {
   const { selectedFiscalYear, setSelectedFiscalYear } = useAppStore()
   const { profile } = useAuthStore()
-  const years = [2024, 2025, 2026]
+  const currentFY = getCurrentFiscalYear()
+  const years = Array.from(
+    { length: Math.max(currentFY - SYSTEM_START_YEAR + 1, 1) },
+    (_, i) => SYSTEM_START_YEAR + i
+  )
 
   return (
     <header className="bg-white border-b border-toss-gray-100 px-6 py-4 flex items-center justify-between sticky top-0 z-20">
