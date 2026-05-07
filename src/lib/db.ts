@@ -172,10 +172,11 @@ export async function deleteExpenseItem(id: string): Promise<void> {
 // ─────────────────────────────────────────
 export async function getTrafficLightConfig(): Promise<TrafficLightConfig> {
   const { data, error } = await supabase.from('traffic_light_config').select('*').eq('id', 1).single()
-  if (error) return { greenMin: 80, greenMax: 100, yellowLowMin: 60, yellowHighMax: 120 }
+  if (error) return { greenMin: 80, greenMax: 100, yellowLowMin: 60, yellowHighMax: 120, budgetPerPerson: 50_000 }
   return {
     greenMin: data.green_min, greenMax: data.green_max,
     yellowLowMin: data.yellow_low_min, yellowHighMax: data.yellow_high_max,
+    budgetPerPerson: data.budget_per_person ?? 50_000,
   }
 }
 
@@ -183,6 +184,7 @@ export async function updateTrafficLightConfig(cfg: TrafficLightConfig): Promise
   const { error } = await supabase.from('traffic_light_config').update({
     green_min: cfg.greenMin, green_max: cfg.greenMax,
     yellow_low_min: cfg.yellowLowMin, yellow_high_max: cfg.yellowHighMax,
+    budget_per_person: cfg.budgetPerPerson,
     updated_at: new Date().toISOString(),
   }).eq('id', 1)
   if (error) throw error
@@ -217,7 +219,7 @@ export async function getTeamBudgetSummaries(
     const monthlyData = fiscalOrder.map(month => {
       const hc      = headcounts.find(h => h.teamId === team.id && h.month === month)
       const hcount  = hc?.headcount ?? 0
-      const alloc   = calcAllocated(hcount)
+      const alloc   = calcAllocated(hcount, config.budgetPerPerson)
       const actual  = expMap[team.id]?.[month] ?? 0
       const rate    = calcExecutionRate(actual, alloc)
       const status: StatusType = actual > 0 ? getExecutionStatus(rate, config) : 'green'

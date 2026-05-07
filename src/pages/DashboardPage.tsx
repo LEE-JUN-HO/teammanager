@@ -4,7 +4,7 @@ import { useAppStore } from '../store/appStore'
 import { useAuthStore } from '../store/authStore'
 import * as db from '../lib/db'
 import Header from '../components/layout/Header'
-import { formatKRW, getFiscalMonths } from '../utils/budget'
+import { formatKRW, getFiscalMonths, DEFAULT_CONFIG } from '../utils/budget'
 import StatusBadge, { StatusDot } from '../components/ui/StatusBadge'
 import ProgressBar from '../components/ui/ProgressBar'
 import {
@@ -37,7 +37,7 @@ export default function DashboardPage() {
   const navigate = useNavigate()
 
   const [summaries, setSummaries] = useState<TeamBudgetSummary[]>([])
-  const [config, setConfig] = useState<TrafficLightConfig>({ greenMin: 80, greenMax: 100, yellowLowMin: 60, yellowHighMax: 120 })
+  const [config, setConfig] = useState<TrafficLightConfig>(DEFAULT_CONFIG)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {

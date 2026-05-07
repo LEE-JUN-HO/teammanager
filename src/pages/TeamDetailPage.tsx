@@ -4,7 +4,7 @@ import { useAppStore } from '../store/appStore'
 import { useAuthStore } from '../store/authStore'
 import * as db from '../lib/db'
 import Header from '../components/layout/Header'
-import { formatKRW, formatKRWFull, getFiscalMonths, calcAllocated, calcExecutionRate, getExecutionStatus } from '../utils/budget'
+import { formatKRW, formatKRWFull, getFiscalMonths, calcAllocated, calcExecutionRate, getExecutionStatus, DEFAULT_CONFIG } from '../utils/budget'
 import StatusBadge from '../components/ui/StatusBadge'
 import ProgressBar from '../components/ui/ProgressBar'
 import { ChevronLeft, ClipboardList } from 'lucide-react'
@@ -20,7 +20,7 @@ export default function TeamDetailPage() {
   const [team, setTeam] = useState<Team | null>(null)
   const [headcounts, setHeadcounts] = useState<MonthlyHeadcount[]>([])
   const [expenseByMonth, setExpenseByMonth] = useState<Record<number, number>>({})
-  const [config, setConfig] = useState<TrafficLightConfig>({ greenMin: 80, greenMax: 100, yellowLowMin: 60, yellowHighMax: 120 })
+  const [config, setConfig] = useState<TrafficLightConfig>(DEFAULT_CONFIG)
   const [loading, setLoading] = useState(true)
 
   const canEdit = profile?.role === 'admin' || (profile?.role === 'manager' && profile?.teamId === teamId)
@@ -52,7 +52,7 @@ export default function TeamDetailPage() {
 
   const monthlyData = fiscalMonths.map(fm => {
     const hc       = headcounts.find(h => h.month === fm.month)?.headcount ?? 0
-    const alloc    = calcAllocated(hc)
+    const alloc    = calcAllocated(hc, config.budgetPerPerson)
     const actual   = expenseByMonth[fm.month] ?? 0
     const rate     = calcExecutionRate(actual, alloc)
     const status: StatusType = actual > 0 ? getExecutionStatus(rate, config) : 'green'

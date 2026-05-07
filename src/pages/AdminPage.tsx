@@ -4,14 +4,69 @@ import { useAuthStore } from '../store/authStore'
 import { useAppStore } from '../store/appStore'
 import * as db from '../lib/db'
 import Header from '../components/layout/Header'
-import { MONTHLY_BUDGET_PER_PERSON, formatKRW, getFiscalMonths } from '../utils/budget'
+import { MONTHLY_BUDGET_PER_PERSON, formatKRW, getFiscalMonths, DEFAULT_CONFIG } from '../utils/budget'
 import { Check, AlertCircle, Plus, Trash2, Save } from 'lucide-react'
 import { StatusDot } from '../components/ui/StatusBadge'
 import type { TrafficLightConfig, UserProfile, Team, MonthlyHeadcount } from '../types'
 
+// ─── Budget Config ────────────────────────────────────────
+function BudgetConfigSection({ isAdmin }: { isAdmin: boolean }) {
+  const [budgetPerPerson, setBudgetPerPerson] = useState(MONTHLY_BUDGET_PER_PERSON)
+  const [saved, setSaved] = useState(false)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    db.getTrafficLightConfig().then(cfg => {
+      setBudgetPerPerson(cfg.budgetPerPerson)
+      setLoading(false)
+    })
+  }, [])
+
+  const save = async () => {
+    const cfg = await db.getTrafficLightConfig()
+    await db.updateTrafficLightConfig({ ...cfg, budgetPerPerson })
+    setSaved(true)
+    setTimeout(() => setSaved(false), 2000)
+  }
+
+  if (loading) return <div className="card animate-pulse h-32" />
+
+  return (
+    <div className="card">
+      <h2 className="font-bold text-toss-gray-900 mb-1">예산 기준</h2>
+      <p className="text-sm text-toss-gray-500 mb-5">인당 월 예산 기준금액을 설정합니다. 변경 시 모든 팀의 배정 예산이 즉시 재계산됩니다.</p>
+      <div className="flex flex-wrap items-end gap-6">
+        <div>
+          <label className="label">인당 월 예산 (원)</label>
+          {isAdmin ? (
+            <input type="number" min={0} step={1000} className="input w-40 text-sm"
+              value={budgetPerPerson}
+              onChange={e => setBudgetPerPerson(Number(e.target.value))} />
+          ) : (
+            <p className="text-xl font-bold text-toss-gray-900">{formatKRW(budgetPerPerson)}</p>
+          )}
+        </div>
+        <div className="bg-toss-gray-50 rounded-xl px-4 py-3">
+          <p className="text-xs text-toss-gray-500">인당 연간 예산</p>
+          <p className="text-lg font-bold text-toss-gray-900">{formatKRW(budgetPerPerson * 12)}</p>
+        </div>
+        <div className="bg-toss-gray-50 rounded-xl px-4 py-3">
+          <p className="text-xs text-toss-gray-500">회계 기간</p>
+          <p className="text-lg font-bold text-toss-gray-900">2월 ~ 익년 1월</p>
+        </div>
+      </div>
+      {isAdmin && (
+        <button onClick={save} className="btn-primary mt-5 flex items-center gap-2">
+          {saved ? <><Check size={16} />저장됨</> : <><Save size={16} />저장</>}
+        </button>
+      )}
+    </div>
+  )
+}
+
 // ─── Traffic Light Settings ────────────────────────────────
 function TrafficLightSection({ isAdmin }: { isAdmin: boolean }) {
-  const [cfg, setCfg] = useState<TrafficLightConfig>({ greenMin: 80, greenMax: 100, yellowLowMin: 60, yellowHighMax: 120 })
+  const [cfg, setCfg] = useState<TrafficLightConfig>(DEFAULT_CONFIG)
   const [saved, setSaved] = useState(false)
   const [loading, setLoading] = useState(true)
 
@@ -200,7 +255,12 @@ function HeadcountManagementSection({ teams }: { teams: Team[] }) {
   const [edits, setEdits] = useState<Record<number, HcRow>>({})
   const [saving, setSaving] = useState<number | null>(null)
   const [saved, setSaved] = useState<number | null>(null)
+  const [budgetPerPerson, setBudgetPerPerson] = useState(MONTHLY_BUDGET_PER_PERSON)
   const fiscalMonths = getFiscalMonths(selectedFiscalYear)
+
+  useEffect(() => {
+    db.getTrafficLightConfig().then(cfg => setBudgetPerPerson(cfg.budgetPerPerson))
+  }, [])
 
   useEffect(() => {
     if (teams.length > 0 && !selectedTeamId) setSelectedTeamId(teams[0].id)
@@ -255,7 +315,7 @@ function HeadcountManagementSection({ teams }: { teams: Team[] }) {
   }
 
   const totalEnd = fiscalMonths.reduce((s, fm) => s + calcEnd(getRow(fm.month)), 0)
-  const totalBudget = fiscalMonths.reduce((s, fm) => s + calcEnd(getRow(fm.month)) * MONTHLY_BUDGET_PER_PERSON, 0)
+  const totalBudget = fiscalMonths.reduce((s, fm) => s + calcEnd(getRow(fm.month)) * budgetPerPerson, 0)
 
   return (
     <div className="card p-0 overflow-hidden">
@@ -283,7 +343,7 @@ function HeadcountManagementSection({ teams }: { teams: Team[] }) {
             {fiscalMonths.map(fm => {
               const row = getRow(fm.month)
               const endHc = calcEnd(row)
-              const budget = endHc * MONTHLY_BUDGET_PER_PERSON
+              const budget = endHc * budgetPerPerson
               const changed = isChanged(fm.month)
               const isSaving = saving === fm.month
               const isSaved  = saved  === fm.month
@@ -427,22 +487,7 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* Budget base info */}
-        <div className="card">
-          <h2 className="font-bold text-toss-gray-900 mb-4">예산 기준</h2>
-          <div className="flex flex-wrap gap-6">
-            {[
-              { label: '인당 월 예산', value: formatKRW(MONTHLY_BUDGET_PER_PERSON) },
-              { label: '인당 연간 예산', value: formatKRW(MONTHLY_BUDGET_PER_PERSON * 12) },
-              { label: '예산 기간', value: '2월 ~ 익년 1월' },
-            ].map(k => (
-              <div key={k.label} className="bg-toss-gray-50 rounded-xl px-4 py-3">
-                <p className="text-xs text-toss-gray-500">{k.label}</p>
-                <p className="text-lg font-bold text-toss-gray-900 mt-0.5">{k.value}</p>
-              </div>
-            ))}
-          </div>
-        </div>
+        <BudgetConfigSection isAdmin={isAdmin} />
 
         <HeadcountManagementSection teams={teams} />
         <TrafficLightSection isAdmin={isAdmin} />
