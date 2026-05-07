@@ -1,11 +1,1 @@
-{
-  "name": "team-budget-manager",
-  "version": "0.1.0",
-  "private": true,
-  "description": "Responsive team budget management and monitoring prototype.",
-  "scripts": {
-    "start": "python3 -m http.server 4173",
-    "test": "node tests/budget-calculations.test.js"
-  },
-  "type": "module"
-}
+{"name":"teammanager","private":true,"version":"0.0.0","type":"module","scripts":{"dev":"vite","build":"vite build","lint":"eslint .","preview":"vite preview","deploy":"vite build && gh-pages -d dist"},"dependencies":{"react":"^18.3.1","react-dom":"^18.3.1","react-router-dom":"^6.27.0","recharts":"^2.13.3","zustand":"^5.0.1","date-fns":"^4.1.0","lucide-react":"^0.460.0","clsx":"^2.1.1"},"devDependencies":{"@types/react":"^18.3.12","@types/react-dom":"^18.3.1","@vitejs/plugin-react":"^4.3.3","autoprefixer":"^10.4.20","eslint":"^9.13.0","gh-pages":"^6.2.0","postcss":"^8.4.49","tailwindcss":"^3.4.15","typescript":"^5.6.2","vite":"^6.0.1"}}
