@@ -70,10 +70,17 @@ export default function LoginPage() {
             </button>
           </form>
 
-          <p className="text-center text-sm text-toss-gray-500 mt-5">
-            계정이 없으신가요?{' '}
-            <Link to="/signup" className="text-toss-blue font-semibold hover:underline">회원가입</Link>
-          </p>
+          <div className="mt-5 space-y-2 text-center text-sm text-toss-gray-500">
+            <p>
+              계정이 없으신가요?{' '}
+              <Link to="/signup" className="text-toss-blue font-semibold hover:underline">회원가입</Link>
+            </p>
+            <p>
+              <Link to="/forgot-password" className="text-toss-gray-500 hover:text-toss-blue hover:underline transition-colors">
+                비밀번호를 잊으셨나요?
+              </Link>
+            </p>
+          </div>
         </div>
       </div>
     </div>

@@ -34,7 +34,11 @@ export const useAuthStore = create<AuthState>((set) => ({
       const profile = await getCurrentProfile(session.user.id)
       set({ profile })
     }
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        window.location.hash = '/reset-password'
+        return
+      }
       set({ session })
       if (session?.user) {
         const profile = await getCurrentProfile(session.user.id)
