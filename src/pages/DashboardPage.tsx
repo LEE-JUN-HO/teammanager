@@ -60,7 +60,7 @@ export default function DashboardPage() {
   const totalActual    = summaries.reduce((s, t) => s + t.totalActual, 0)
   const orgRate        = totalAllocated > 0 ? totalActual / totalAllocated * 100 : 0
   const alertCount     = summaries.filter(s => s.status === 'red').length
-  const totalHC        = summaries.reduce((s, t) => {
+  const totalHC        = summaries.filter(t => !t.team.isDivision).reduce((s, t) => {
     const avg = t.monthlyData.filter(m => m.headcount > 0)
     return s + (avg.length ? avg.reduce((a, m) => a + m.headcount, 0) / avg.length : 0)
   }, 0)
