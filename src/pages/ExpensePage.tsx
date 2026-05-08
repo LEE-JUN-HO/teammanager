@@ -21,7 +21,8 @@ export default function ExpensePage() {
   const canEditTeam = (teamId: string) =>
     profile?.role === 'admin' || (profile?.role === 'manager' && profile.teamId === teamId)
 
-  useEffect(() => { load() }, [selectedFiscalYear])
+  // profile.role/teamId가 바뀌면(로그인 직후 포함) 재조회해서 필터 재적용
+  useEffect(() => { load() }, [selectedFiscalYear, profile?.role, profile?.teamId])
 
   async function load() {
     setLoading(true)

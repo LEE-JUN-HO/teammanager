@@ -182,14 +182,17 @@ function UserManagementSection({ isAdmin, teams }: { isAdmin: boolean; teams: Te
   const handleSave = async (u: UserProfile) => {
     const e = getEdit(u)
     setSaving(u.id)
-    await db.updateProfile(u.id, {
-      role: e.role,
-      teamId: e.role === 'manager' ? e.teamId : null,
-    })
-    setUsers(prev => prev.map(p => p.id === u.id
-      ? { ...p, role: e.role as UserProfile['role'], teamId: e.role === 'manager' ? e.teamId : null }
-      : p))
-    setSaving(null)
+    try {
+      await db.updateProfile(u.id, {
+        role: e.role,
+        teamId: e.role === 'manager' ? e.teamId : null,
+      })
+      setUsers(prev => prev.map(p => p.id === u.id
+        ? { ...p, role: e.role as UserProfile['role'], teamId: e.role === 'manager' ? e.teamId : null }
+        : p))
+    } finally {
+      setSaving(null)
+    }
   }
 
   if (loading) return <div className="card animate-pulse h-48" />
