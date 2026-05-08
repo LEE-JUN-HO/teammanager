@@ -4,27 +4,29 @@ import { useAuthStore } from '../store/authStore'
 import { useAppStore } from '../store/appStore'
 import * as db from '../lib/db'
 import Header from '../components/layout/Header'
-import { MONTHLY_BUDGET_PER_PERSON, formatKRW, getFiscalMonths, DEFAULT_CONFIG } from '../utils/budget'
-import { Check, AlertCircle, Plus, Trash2, Save } from 'lucide-react'
+import { MONTHLY_BUDGET_PER_PERSON, MONTHLY_DIVISION_BUDGET_PER_PERSON, formatKRW, getFiscalMonths, DEFAULT_CONFIG } from '../utils/budget'
+import { Check, AlertCircle, Plus, Trash2, Save, Pencil, X } from 'lucide-react'
 import { StatusDot } from '../components/ui/StatusBadge'
 import type { TrafficLightConfig, UserProfile, Team, MonthlyHeadcount } from '../types'
 
 // ─── Budget Config ────────────────────────────────────────
 function BudgetConfigSection({ isAdmin }: { isAdmin: boolean }) {
   const [budgetPerPerson, setBudgetPerPerson] = useState(MONTHLY_BUDGET_PER_PERSON)
+  const [divisionBudgetPerPerson, setDivisionBudgetPerPerson] = useState(MONTHLY_DIVISION_BUDGET_PER_PERSON)
   const [saved, setSaved] = useState(false)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     db.getTrafficLightConfig().then(cfg => {
       setBudgetPerPerson(cfg.budgetPerPerson)
+      setDivisionBudgetPerPerson(cfg.divisionBudgetPerPerson)
       setLoading(false)
     })
   }, [])
 
   const save = async () => {
     const cfg = await db.getTrafficLightConfig()
-    await db.updateTrafficLightConfig({ ...cfg, budgetPerPerson })
+    await db.updateTrafficLightConfig({ ...cfg, budgetPerPerson, divisionBudgetPerPerson })
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
   }
@@ -34,31 +36,61 @@ function BudgetConfigSection({ isAdmin }: { isAdmin: boolean }) {
   return (
     <div className="card">
       <h2 className="font-bold text-toss-gray-900 mb-1">예산 기준</h2>
-      <p className="text-sm text-toss-gray-500 mb-5">인당 월 예산 기준금액을 설정합니다. 변경 시 모든 팀의 배정 예산이 즉시 재계산됩니다.</p>
-      <div className="flex flex-wrap items-end gap-6">
-        <div>
-          <label className="label">인당 월 예산 (원)</label>
-          {isAdmin ? (
-            <input type="number" min={0} step={1000} className="input w-40 text-sm"
-              value={budgetPerPerson}
-              onChange={e => setBudgetPerPerson(Number(e.target.value))} />
-          ) : (
-            <p className="text-xl font-bold text-toss-gray-900">{formatKRW(budgetPerPerson)}</p>
-          )}
-        </div>
-        <div className="bg-toss-gray-50 rounded-xl px-4 py-3">
-          <p className="text-xs text-toss-gray-500">인당 연간 예산</p>
-          <p className="text-lg font-bold text-toss-gray-900">{formatKRW(budgetPerPerson * 12)}</p>
-        </div>
-        <div className="bg-toss-gray-50 rounded-xl px-4 py-3">
-          <p className="text-xs text-toss-gray-500">회계 기간</p>
-          <p className="text-lg font-bold text-toss-gray-900">2월 ~ 익년 1월</p>
+      <p className="text-sm text-toss-gray-500 mb-5">팀 · 본부별 인당 월 예산 기준금액을 설정합니다. 변경 시 모든 조직의 배정 예산이 즉시 재계산됩니다.</p>
+
+      {/* 팀 예산 */}
+      <div className="mb-5">
+        <p className="text-xs font-semibold text-toss-gray-500 mb-3 uppercase tracking-wide">팀</p>
+        <div className="flex flex-wrap items-end gap-6">
+          <div>
+            <label className="label">인당 월 예산 (원)</label>
+            {isAdmin ? (
+              <input type="number" min={0} step={1000} className="input w-40 text-sm"
+                value={budgetPerPerson}
+                onChange={e => setBudgetPerPerson(Number(e.target.value))} />
+            ) : (
+              <p className="text-xl font-bold text-toss-gray-900">{formatKRW(budgetPerPerson)}</p>
+            )}
+          </div>
+          <div className="bg-toss-gray-50 rounded-xl px-4 py-3">
+            <p className="text-xs text-toss-gray-500">인당 연간 예산</p>
+            <p className="text-lg font-bold text-toss-gray-900">{formatKRW(budgetPerPerson * 12)}</p>
+          </div>
         </div>
       </div>
+
+      {/* 본부 예산 */}
+      <div className="mb-5 border-t border-toss-gray-100 pt-5">
+        <p className="text-xs font-semibold text-purple-500 mb-3 uppercase tracking-wide">본부</p>
+        <div className="flex flex-wrap items-end gap-6">
+          <div>
+            <label className="label">인당 월 예산 (원)</label>
+            {isAdmin ? (
+              <input type="number" min={0} step={1000} className="input w-40 text-sm"
+                value={divisionBudgetPerPerson}
+                onChange={e => setDivisionBudgetPerPerson(Number(e.target.value))} />
+            ) : (
+              <p className="text-xl font-bold text-toss-gray-900">{formatKRW(divisionBudgetPerPerson)}</p>
+            )}
+          </div>
+          <div className="bg-purple-50 rounded-xl px-4 py-3">
+            <p className="text-xs text-purple-500">인당 연간 예산</p>
+            <p className="text-lg font-bold text-toss-gray-900">{formatKRW(divisionBudgetPerPerson * 12)}</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-toss-gray-50 rounded-xl px-4 py-3 mb-4 inline-block">
+        <p className="text-xs text-toss-gray-500">회계 기간</p>
+        <p className="text-lg font-bold text-toss-gray-900">2월 ~ 익년 1월</p>
+      </div>
+
       {isAdmin && (
-        <button onClick={save} className="btn-primary mt-5 flex items-center gap-2">
-          {saved ? <><Check size={16} />저장됨</> : <><Save size={16} />저장</>}
-        </button>
+        <div>
+          <button onClick={save} className="btn-primary flex items-center gap-2">
+            {saved ? <><Check size={16} />저장됨</> : <><Save size={16} />저장</>}
+          </button>
+        </div>
       )}
     </div>
   )
@@ -255,11 +287,16 @@ function HeadcountManagementSection({ teams }: { teams: Team[] }) {
   const [edits, setEdits] = useState<Record<number, HcRow>>({})
   const [saving, setSaving] = useState<number | null>(null)
   const [saved, setSaved] = useState<number | null>(null)
-  const [budgetPerPerson, setBudgetPerPerson] = useState(MONTHLY_BUDGET_PER_PERSON)
+  const [config, setConfig] = useState(DEFAULT_CONFIG)
   const fiscalMonths = getFiscalMonths(selectedFiscalYear)
 
+  const selectedTeam = teams.find(t => t.id === selectedTeamId)
+  const budgetPerPerson = selectedTeam?.isDivision
+    ? config.divisionBudgetPerPerson
+    : config.budgetPerPerson
+
   useEffect(() => {
-    db.getTrafficLightConfig().then(cfg => setBudgetPerPerson(cfg.budgetPerPerson))
+    db.getTrafficLightConfig().then(setConfig)
   }, [])
 
   useEffect(() => {
@@ -327,10 +364,15 @@ function HeadcountManagementSection({ teams }: { teams: Team[] }) {
           <h2 className="font-bold text-toss-gray-900">월별 인원 관리</h2>
           <p className="text-sm text-toss-gray-500 mt-0.5">기초인원 · 입사자 · 퇴사자를 입력하면 기말인원과 배정예산이 자동 계산됩니다</p>
         </div>
-        <select className="input w-40 text-sm"
-          value={selectedTeamId} onChange={e => setSelectedTeamId(e.target.value)}>
-          {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-        </select>
+        <div className="flex items-center gap-2">
+          {selectedTeam?.isDivision && (
+            <span className="text-xs font-semibold text-purple-600 bg-purple-100 px-2 py-1 rounded-full">본부 기준 적용</span>
+          )}
+          <select className="input w-44 text-sm"
+            value={selectedTeamId} onChange={e => setSelectedTeamId(e.target.value)}>
+            {teams.map(t => <option key={t.id} value={t.id}>{t.isDivision ? `[본부] ${t.name}` : t.name}</option>)}
+          </select>
+        </div>
       </div>
 
       <div className="overflow-x-auto">
@@ -406,16 +448,39 @@ function HeadcountManagementSection({ teams }: { teams: Team[] }) {
 function TeamManagementSection({ isAdmin, teams, setTeams }: {
   isAdmin: boolean; teams: Team[]; setTeams: (t: Team[]) => void
 }) {
-  const [newTeam, setNewTeam] = useState({ name: '', color: '#0064FF' })
+  const [newTeam, setNewTeam] = useState({ name: '', color: '#0064FF', isDivision: false })
   const [saving, setSaving] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editForm, setEditForm] = useState<{ name: string; color: string; isDivision: boolean }>({ name: '', color: '#0064FF', isDivision: false })
+  const [editSaving, setEditSaving] = useState(false)
 
   const handleAdd = async () => {
     if (!newTeam.name.trim()) return
     setSaving(true)
-    const t = await db.addTeam({ name: newTeam.name.trim(), color: newTeam.color })
-    setTeams([...teams, t])
-    setNewTeam({ name: '', color: '#0064FF' })
-    setSaving(false)
+    try {
+      const t = await db.addTeam({ name: newTeam.name.trim(), color: newTeam.color, isDivision: newTeam.isDivision })
+      setTeams([...teams, t])
+      setNewTeam({ name: '', color: '#0064FF', isDivision: false })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleEditStart = (t: Team) => {
+    setEditingId(t.id)
+    setEditForm({ name: t.name, color: t.color, isDivision: t.isDivision })
+  }
+
+  const handleEditSave = async (id: string) => {
+    if (!editForm.name.trim()) return
+    setEditSaving(true)
+    try {
+      await db.updateTeam(id, { name: editForm.name.trim(), color: editForm.color, isDivision: editForm.isDivision })
+      setTeams(teams.map(t => t.id === id ? { ...t, ...editForm, name: editForm.name.trim() } : t))
+      setEditingId(null)
+    } finally {
+      setEditSaving(false)
+    }
   }
 
   const handleDelete = async (id: string, name: string) => {
@@ -426,29 +491,75 @@ function TeamManagementSection({ isAdmin, teams, setTeams }: {
 
   return (
     <div className="card">
-      <h2 className="font-bold text-toss-gray-900 mb-1">팀 관리</h2>
-      <p className="text-sm text-toss-gray-500 mb-4">팀을 추가하거나 삭제할 수 있어요.</p>
+      <h2 className="font-bold text-toss-gray-900 mb-1">팀 · 본부 관리</h2>
+      <p className="text-sm text-toss-gray-500 mb-4">팀 또는 본부를 추가 · 수정 · 삭제할 수 있어요. 본부로 설정하면 별도 예산 기준이 적용됩니다.</p>
       <div className="space-y-2 mb-4">
         {teams.map(t => (
-          <div key={t.id} className="flex items-center justify-between bg-toss-gray-50 rounded-xl px-4 py-3">
-            <div className="flex items-center gap-3">
-              <div className="w-3 h-3 rounded-full" style={{ backgroundColor: t.color }} />
-              <span className="text-sm font-semibold">{t.name}</span>
-            </div>
-            {isAdmin && (
-              <button onClick={() => handleDelete(t.id, t.name)}
-                className="text-toss-gray-400 hover:text-status-red transition-colors">
-                <Trash2 size={15} />
-              </button>
+          <div key={t.id}>
+            {editingId === t.id ? (
+              /* 인라인 수정 폼 */
+              <div className="border-2 border-toss-blue rounded-xl p-3 space-y-3">
+                <div className="flex gap-2 flex-wrap items-end">
+                  <input className="input flex-1 min-w-[120px] text-sm" placeholder="이름"
+                    value={editForm.name} onChange={e => setEditForm(p => ({ ...p, name: e.target.value }))} />
+                  <div className="flex items-center gap-2">
+                    <label className="text-xs text-toss-gray-500">색상</label>
+                    <input type="color" value={editForm.color}
+                      onChange={e => setEditForm(p => ({ ...p, color: e.target.value }))}
+                      className="w-8 h-8 rounded-lg border border-toss-gray-200 cursor-pointer" />
+                  </div>
+                  <label className="flex items-center gap-2 cursor-pointer select-none">
+                    <input type="checkbox" checked={editForm.isDivision}
+                      onChange={e => setEditForm(p => ({ ...p, isDivision: e.target.checked }))}
+                      className="w-4 h-4 accent-purple-500" />
+                    <span className="text-sm text-purple-600 font-semibold">본부</span>
+                  </label>
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={() => handleEditSave(t.id)} disabled={!editForm.name.trim() || editSaving}
+                    className="btn-primary text-xs py-1.5 px-3 flex items-center gap-1">
+                    {editSaving
+                      ? <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      : <Check size={12} />}
+                    저장
+                  </button>
+                  <button onClick={() => setEditingId(null)} className="btn-secondary text-xs py-1.5 px-3">
+                    <X size={12} />
+                  </button>
+                </div>
+              </div>
+            ) : (
+              /* 일반 표시 행 */
+              <div className="flex items-center justify-between bg-toss-gray-50 rounded-xl px-4 py-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: t.color }} />
+                  <span className="text-sm font-semibold">{t.name}</span>
+                  {t.isDivision && (
+                    <span className="text-xs font-semibold text-purple-600 bg-purple-100 px-2 py-0.5 rounded-full">본부</span>
+                  )}
+                </div>
+                {isAdmin && (
+                  <div className="flex items-center gap-1">
+                    <button onClick={() => handleEditStart(t)}
+                      className="p-1.5 rounded-lg hover:bg-toss-gray-200 text-toss-gray-500 transition-colors">
+                      <Pencil size={13} />
+                    </button>
+                    <button onClick={() => handleDelete(t.id, t.name)}
+                      className="p-1.5 rounded-lg hover:bg-status-red-bg text-toss-gray-400 hover:text-status-red transition-colors">
+                      <Trash2 size={13} />
+                    </button>
+                  </div>
+                )}
+              </div>
             )}
           </div>
         ))}
       </div>
       {isAdmin && (
         <div className="border border-toss-gray-200 rounded-xl p-4 space-y-3">
-          <p className="text-xs font-semibold text-toss-gray-600">새 팀 추가</p>
-          <div className="flex gap-3">
-            <input className="input flex-1" placeholder="팀 이름"
+          <p className="text-xs font-semibold text-toss-gray-600">새 팀 · 본부 추가</p>
+          <div className="flex gap-3 flex-wrap items-end">
+            <input className="input flex-1 min-w-[120px]" placeholder="이름"
               value={newTeam.name} onChange={e => setNewTeam(p => ({ ...p, name: e.target.value }))} />
             <div className="flex items-center gap-2">
               <label className="text-xs text-toss-gray-500">색상</label>
@@ -456,9 +567,16 @@ function TeamManagementSection({ isAdmin, teams, setTeams }: {
                 onChange={e => setNewTeam(p => ({ ...p, color: e.target.value }))}
                 className="w-9 h-9 rounded-lg border border-toss-gray-200 cursor-pointer" />
             </div>
+            <label className="flex items-center gap-2 cursor-pointer select-none">
+              <input type="checkbox" checked={newTeam.isDivision}
+                onChange={e => setNewTeam(p => ({ ...p, isDivision: e.target.checked }))}
+                className="w-4 h-4 accent-purple-500" />
+              <span className="text-sm text-purple-600 font-semibold">본부</span>
+            </label>
             <button disabled={!newTeam.name.trim() || saving} onClick={handleAdd}
               className="btn-primary flex items-center gap-1.5 whitespace-nowrap">
-              <Plus size={15} />추가
+              {saving ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <Plus size={15} />}
+              추가
             </button>
           </div>
         </div>

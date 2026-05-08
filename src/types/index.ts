@@ -11,6 +11,7 @@ export interface Team {
   id: string
   name: string
   color: string
+  isDivision: boolean
   createdAt: string
 }
 
@@ -46,7 +47,8 @@ export interface TrafficLightConfig {
   greenMax: number
   yellowLowMin: number
   yellowHighMax: number
-  budgetPerPerson: number  // 인당 월 예산 (원)
+  budgetPerPerson: number           // 팀 인당 월 예산 (원)
+  divisionBudgetPerPerson: number   // 본부 인당 월 예산 (원)
 }
 
 export type StatusType = 'green' | 'yellow' | 'red'

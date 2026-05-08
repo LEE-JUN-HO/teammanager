@@ -11,17 +11,25 @@ import { calcAllocated, calcExecutionRate, getExecutionStatus } from '../utils/b
 export async function getTeams(): Promise<Team[]> {
   const { data, error } = await supabase.from('teams').select('*').order('name')
   if (error) throw error
-  return (data ?? []).map(r => ({ id: r.id, name: r.name, color: r.color, createdAt: r.created_at }))
+  return (data ?? []).map(r => ({
+    id: r.id, name: r.name, color: r.color,
+    isDivision: r.is_division ?? false,
+    createdAt: r.created_at,
+  }))
 }
 
-export async function addTeam(team: Pick<Team, 'name' | 'color'>): Promise<Team> {
-  const { data, error } = await supabase.from('teams').insert(team).select().single()
+export async function addTeam(team: Pick<Team, 'name' | 'color' | 'isDivision'>): Promise<Team> {
+  const { data, error } = await supabase.from('teams').insert({
+    name: team.name, color: team.color, is_division: team.isDivision,
+  }).select().single()
   if (error) throw error
-  return { id: data.id, name: data.name, color: data.color, createdAt: data.created_at }
+  return { id: data.id, name: data.name, color: data.color, isDivision: data.is_division ?? false, createdAt: data.created_at }
 }
 
-export async function updateTeam(id: string, updates: Pick<Team, 'name' | 'color'>): Promise<void> {
-  const { error } = await supabase.from('teams').update(updates).eq('id', id)
+export async function updateTeam(id: string, updates: Pick<Team, 'name' | 'color' | 'isDivision'>): Promise<void> {
+  const { error } = await supabase.from('teams').update({
+    name: updates.name, color: updates.color, is_division: updates.isDivision,
+  }).eq('id', id)
   if (error) throw error
 }
 
@@ -122,16 +130,16 @@ export async function getExpenseItems(
   }))
 }
 
-export async function getNextSeq(teamId: string, fiscalYear: number, month: number): Promise<number> {
+export async function getNextSeq(teamId: string, fiscalYear: number): Promise<number> {
   const { data } = await supabase.from('expense_items').select('seq')
-    .eq('team_id', teamId).eq('fiscal_year', fiscalYear).eq('month', month)
+    .eq('team_id', teamId).eq('fiscal_year', fiscalYear)
     .order('seq', { ascending: false }).limit(1)
-  return ((data?.[0]?.seq as number) ?? 0) + 1
+  return Number(data?.[0]?.seq ?? 0) + 1
 }
 
 export async function addExpenseItem(item: Omit<ExpenseItem, 'id' | 'seq' | 'createdAt' | 'createdBy'>): Promise<ExpenseItem> {
   const userId = (await supabase.auth.getUser()).data.user?.id
-  const seq = await getNextSeq(item.teamId, item.fiscalYear, item.month)
+  const seq = await getNextSeq(item.teamId, item.fiscalYear)
   const { data, error } = await supabase.from('expense_items').insert({
     team_id: item.teamId, fiscal_year: item.fiscalYear, month: item.month,
     seq, expense_date: item.expenseDate, user_name: item.userName,
@@ -141,7 +149,7 @@ export async function addExpenseItem(item: Omit<ExpenseItem, 'id' | 'seq' | 'cre
   if (error) throw error
   return {
     id: data.id, teamId: data.team_id, fiscalYear: data.fiscal_year,
-    month: data.month, seq: data.seq, expenseDate: data.expense_date,
+    month: data.month, seq: Number(data.seq), expenseDate: data.expense_date,
     userName: data.user_name, category: data.category,
     description: data.description, amount: Number(data.amount),
     createdBy: data.created_by ?? null, createdAt: data.created_at,
@@ -150,14 +158,15 @@ export async function addExpenseItem(item: Omit<ExpenseItem, 'id' | 'seq' | 'cre
 
 export async function updateExpenseItem(
   id: string,
-  updates: Partial<Pick<ExpenseItem, 'expenseDate' | 'userName' | 'category' | 'description' | 'amount'>>
+  updates: Partial<Pick<ExpenseItem, 'expenseDate' | 'userName' | 'category' | 'description' | 'amount' | 'month'>>
 ): Promise<void> {
   const payload: Record<string, unknown> = {}
-  if (updates.expenseDate)  payload.expense_date = updates.expenseDate
-  if (updates.userName)     payload.user_name    = updates.userName
-  if (updates.category)     payload.category     = updates.category
+  if (updates.expenseDate)             payload.expense_date = updates.expenseDate
+  if (updates.userName)                payload.user_name    = updates.userName
+  if (updates.category)                payload.category     = updates.category
   if (updates.description !== undefined) payload.description = updates.description
-  if (updates.amount !== undefined) payload.amount = updates.amount
+  if (updates.amount !== undefined)    payload.amount       = updates.amount
+  if (updates.month !== undefined)     payload.month        = updates.month
   const { error } = await supabase.from('expense_items').update(payload).eq('id', id)
   if (error) throw error
 }
@@ -172,11 +181,12 @@ export async function deleteExpenseItem(id: string): Promise<void> {
 // ─────────────────────────────────────────
 export async function getTrafficLightConfig(): Promise<TrafficLightConfig> {
   const { data, error } = await supabase.from('traffic_light_config').select('*').eq('id', 1).single()
-  if (error) return { greenMin: 80, greenMax: 100, yellowLowMin: 60, yellowHighMax: 120, budgetPerPerson: 50_000 }
+  if (error) return { greenMin: 80, greenMax: 100, yellowLowMin: 60, yellowHighMax: 120, budgetPerPerson: 50_000, divisionBudgetPerPerson: 33_333 }
   return {
     greenMin: data.green_min, greenMax: data.green_max,
     yellowLowMin: data.yellow_low_min, yellowHighMax: data.yellow_high_max,
     budgetPerPerson: data.budget_per_person ?? 50_000,
+    divisionBudgetPerPerson: data.division_budget_per_person ?? 33_333,
   }
 }
 
@@ -185,6 +195,7 @@ export async function updateTrafficLightConfig(cfg: TrafficLightConfig): Promise
     green_min: cfg.greenMin, green_max: cfg.greenMax,
     yellow_low_min: cfg.yellowLowMin, yellow_high_max: cfg.yellowHighMax,
     budget_per_person: cfg.budgetPerPerson,
+    division_budget_per_person: cfg.divisionBudgetPerPerson,
     updated_at: new Date().toISOString(),
   }).eq('id', 1)
   if (error) throw error
@@ -216,10 +227,11 @@ export async function getTeamBudgetSummaries(
   const fiscalOrder = [2,3,4,5,6,7,8,9,10,11,12,1]
 
   return teams.map(team => {
+    const budgetRate = team.isDivision ? config.divisionBudgetPerPerson : config.budgetPerPerson
     const monthlyData = fiscalOrder.map(month => {
       const hc      = headcounts.find(h => h.teamId === team.id && h.month === month)
       const hcount  = hc?.headcount ?? 0
-      const alloc   = calcAllocated(hcount, config.budgetPerPerson)
+      const alloc   = calcAllocated(hcount, budgetRate)
       const actual  = expMap[team.id]?.[month] ?? 0
       const rate    = calcExecutionRate(actual, alloc)
       const status: StatusType = actual > 0 ? getExecutionStatus(rate, config) : 'green'

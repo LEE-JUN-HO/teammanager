@@ -50,9 +50,11 @@ export default function TeamDetailPage() {
 
   const fiscalMonths = getFiscalMonths(selectedFiscalYear)
 
+  const budgetRate = team?.isDivision ? config.divisionBudgetPerPerson : config.budgetPerPerson
+
   const monthlyData = fiscalMonths.map(fm => {
     const hc       = headcounts.find(h => h.month === fm.month)?.headcount ?? 0
-    const alloc    = calcAllocated(hc, config.budgetPerPerson)
+    const alloc    = calcAllocated(hc, budgetRate)
     const actual   = expenseByMonth[fm.month] ?? 0
     const rate     = calcExecutionRate(actual, alloc)
     const status: StatusType = actual > 0 ? getExecutionStatus(rate, config) : 'green'
@@ -79,7 +81,7 @@ export default function TeamDetailPage() {
 
   return (
     <div>
-      <Header title={team.name} subtitle="월별 예산 현황" />
+      <Header title={team.name} subtitle={team.isDivision ? '월별 예산 현황 · 본부' : '월별 예산 현황'} />
       <div className="p-6 space-y-6">
         <div className="flex items-center gap-3">
           <button onClick={() => navigate(-1)} className="btn-ghost flex items-center gap-1 text-sm">

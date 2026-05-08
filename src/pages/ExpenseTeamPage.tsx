@@ -70,10 +70,12 @@ export default function ExpenseTeamPage() {
     ? items
     : items.filter(i => i.month === selectedMonth)
 
+  const budgetRate = team?.isDivision ? config.divisionBudgetPerPerson : config.budgetPerPerson
+
   // compute month summary
   function monthSummary(month: number) {
     const hc = headcounts.find(h => h.month === month)?.headcount ?? 0
-    const allocated = calcAllocated(hc, config.budgetPerPerson)
+    const allocated = calcAllocated(hc, budgetRate)
     const actual = items.filter(i => i.month === month).reduce((s, i) => s + i.amount, 0)
     const rate = calcExecutionRate(actual, allocated)
     const status = actual > 0 ? getExecutionStatus(rate, config) : 'green' as const
@@ -118,26 +120,33 @@ export default function ExpenseTeamPage() {
     setSaving(true)
     try {
       const amount = editForm.amount ? Number(editForm.amount.replace(/,/g, '')) : undefined
+      const newMonth = editForm.expenseDate
+        ? new Date(editForm.expenseDate).getMonth() + 1
+        : undefined
       const updates = {
         expenseDate: editForm.expenseDate,
         userName: editForm.userName,
         category: editForm.category,
         description: editForm.description,
         ...(amount !== undefined && !isNaN(amount) && { amount }),
+        ...(newMonth !== undefined && { month: newMonth }),
       }
       await db.updateExpenseItem(id, updates)
-      setItems(prev => prev.map(i =>
-        i.id === id
-          ? {
-              ...i,
-              expenseDate: updates.expenseDate ?? i.expenseDate,
-              userName: updates.userName ?? i.userName,
-              category: updates.category ?? i.category,
-              description: updates.description ?? i.description,
-              ...(updates.amount !== undefined && { amount: updates.amount }),
-            }
-          : i
-      ))
+      setItems(prev =>
+        prev.map(i =>
+          i.id === id
+            ? {
+                ...i,
+                expenseDate: updates.expenseDate ?? i.expenseDate,
+                userName: updates.userName ?? i.userName,
+                category: updates.category ?? i.category,
+                description: updates.description ?? i.description,
+                ...(updates.amount !== undefined && { amount: updates.amount }),
+                ...(updates.month !== undefined && { month: updates.month }),
+              }
+            : i
+        ).sort((a, b) => a.month - b.month || a.seq - b.seq)
+      )
       setEditingId(null)
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : '수정 중 오류가 발생했습니다.')

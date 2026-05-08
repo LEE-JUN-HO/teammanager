@@ -64,7 +64,12 @@ export default function ExpensePage() {
                     </span>
                   </div>
                   <div>
-                    <h3 className="font-bold text-toss-gray-900">{s.team.name}</h3>
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-bold text-toss-gray-900">{s.team.name}</h3>
+                      {s.team.isDivision && (
+                        <span className="text-[10px] font-semibold text-purple-600 bg-purple-100 px-1.5 py-0.5 rounded-full">본부</span>
+                      )}
+                    </div>
                     <p className="text-xs text-toss-gray-500 mt-0.5">
                       배정 {formatKRW(s.totalAllocated)} · 집행 {formatKRW(s.totalActual)}
                     </p>
