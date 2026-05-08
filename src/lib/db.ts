@@ -130,16 +130,16 @@ export async function getExpenseItems(
   }))
 }
 
-export async function getNextSeq(teamId: string, fiscalYear: number, month: number): Promise<number> {
+export async function getNextSeq(teamId: string, fiscalYear: number): Promise<number> {
   const { data } = await supabase.from('expense_items').select('seq')
-    .eq('team_id', teamId).eq('fiscal_year', fiscalYear).eq('month', month)
+    .eq('team_id', teamId).eq('fiscal_year', fiscalYear)
     .order('seq', { ascending: false }).limit(1)
-  return ((data?.[0]?.seq as number) ?? 0) + 1
+  return Number(data?.[0]?.seq ?? 0) + 1
 }
 
 export async function addExpenseItem(item: Omit<ExpenseItem, 'id' | 'seq' | 'createdAt' | 'createdBy'>): Promise<ExpenseItem> {
   const userId = (await supabase.auth.getUser()).data.user?.id
-  const seq = await getNextSeq(item.teamId, item.fiscalYear, item.month)
+  const seq = await getNextSeq(item.teamId, item.fiscalYear)
   const { data, error } = await supabase.from('expense_items').insert({
     team_id: item.teamId, fiscal_year: item.fiscalYear, month: item.month,
     seq, expense_date: item.expenseDate, user_name: item.userName,
@@ -149,7 +149,7 @@ export async function addExpenseItem(item: Omit<ExpenseItem, 'id' | 'seq' | 'cre
   if (error) throw error
   return {
     id: data.id, teamId: data.team_id, fiscalYear: data.fiscal_year,
-    month: data.month, seq: data.seq, expenseDate: data.expense_date,
+    month: data.month, seq: Number(data.seq), expenseDate: data.expense_date,
     userName: data.user_name, category: data.category,
     description: data.description, amount: Number(data.amount),
     createdBy: data.created_by ?? null, createdAt: data.created_at,
@@ -158,14 +158,15 @@ export async function addExpenseItem(item: Omit<ExpenseItem, 'id' | 'seq' | 'cre
 
 export async function updateExpenseItem(
   id: string,
-  updates: Partial<Pick<ExpenseItem, 'expenseDate' | 'userName' | 'category' | 'description' | 'amount'>>
+  updates: Partial<Pick<ExpenseItem, 'expenseDate' | 'userName' | 'category' | 'description' | 'amount' | 'month'>>
 ): Promise<void> {
   const payload: Record<string, unknown> = {}
-  if (updates.expenseDate)  payload.expense_date = updates.expenseDate
-  if (updates.userName)     payload.user_name    = updates.userName
-  if (updates.category)     payload.category     = updates.category
+  if (updates.expenseDate)             payload.expense_date = updates.expenseDate
+  if (updates.userName)                payload.user_name    = updates.userName
+  if (updates.category)                payload.category     = updates.category
   if (updates.description !== undefined) payload.description = updates.description
-  if (updates.amount !== undefined) payload.amount = updates.amount
+  if (updates.amount !== undefined)    payload.amount       = updates.amount
+  if (updates.month !== undefined)     payload.month        = updates.month
   const { error } = await supabase.from('expense_items').update(payload).eq('id', id)
   if (error) throw error
 }
