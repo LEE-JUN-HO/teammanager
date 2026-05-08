@@ -90,13 +90,10 @@ export default function ExpenseTeamPage() {
       setError('사용날짜, 사용자, 항목, 금액은 필수입니다.'); return
     }
     const month = new Date(form.expenseDate).getMonth() + 1
-    // determine fiscal month
-    let fiscalMonth = month
-    // For fiscal year: Feb(FY) ~ Jan(FY+1). Jan belongs to next calendar year.
     setSaving(true)
     try {
       const newItem = await db.addExpenseItem({
-        teamId, fiscalYear: selectedFiscalYear, month: fiscalMonth,
+        teamId, fiscalYear: selectedFiscalYear, month,
         expenseDate: form.expenseDate, userName: form.userName,
         category: form.category, description: form.description,
         amount,
@@ -106,8 +103,9 @@ export default function ExpenseTeamPage() {
       setShowForm(false)
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : '저장 중 오류가 발생했습니다.')
+    } finally {
+      setSaving(false)
     }
-    setSaving(false)
   }
 
   async function handleDelete(id: string) {
