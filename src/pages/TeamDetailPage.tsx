@@ -140,7 +140,8 @@ export default function TeamDetailPage() {
               </thead>
               <tbody className="divide-y divide-toss-gray-100">
                 {monthlyData.map(m => (
-                  <tr key={m.month} className="hover:bg-toss-gray-50 cursor-pointer"
+                  <tr key={m.month}
+                    className={`transition-colors ${canEdit ? 'hover:bg-toss-gray-50 cursor-pointer' : 'cursor-default'}`}
                     onClick={() => canEdit && navigate(`/expenses/${teamId}`)}>
                     <td className="px-5 py-3.5 text-sm font-medium text-toss-gray-700">{m.label}</td>
                     <td className="px-5 py-3.5 text-sm">
