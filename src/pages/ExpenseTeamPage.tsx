@@ -116,17 +116,34 @@ export default function ExpenseTeamPage() {
 
   async function handleSaveEdit(id: string) {
     setSaving(true)
-    const amount = editForm.amount ? Number(editForm.amount.replace(/,/g, '')) : undefined
-    await db.updateExpenseItem(id, {
-      expenseDate: editForm.expenseDate,
-      userName: editForm.userName,
-      category: editForm.category,
-      description: editForm.description,
-      ...(amount !== undefined && { amount }),
-    })
-    await load()
-    setEditingId(null)
-    setSaving(false)
+    try {
+      const amount = editForm.amount ? Number(editForm.amount.replace(/,/g, '')) : undefined
+      const updates = {
+        expenseDate: editForm.expenseDate,
+        userName: editForm.userName,
+        category: editForm.category,
+        description: editForm.description,
+        ...(amount !== undefined && !isNaN(amount) && { amount }),
+      }
+      await db.updateExpenseItem(id, updates)
+      setItems(prev => prev.map(i =>
+        i.id === id
+          ? {
+              ...i,
+              expenseDate: updates.expenseDate ?? i.expenseDate,
+              userName: updates.userName ?? i.userName,
+              category: updates.category ?? i.category,
+              description: updates.description ?? i.description,
+              ...(updates.amount !== undefined && { amount: updates.amount }),
+            }
+          : i
+      ))
+      setEditingId(null)
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : '수정 중 오류가 발생했습니다.')
+    } finally {
+      setSaving(false)
+    }
   }
 
   if (loading) return (
@@ -217,19 +234,19 @@ export default function ExpenseTeamPage() {
                       {isEditing ? (
                         <>
                           <td className="px-2 py-2"><input type="date" className="input text-sm py-1.5 w-36"
-                            defaultValue={item.expenseDate}
+                            value={editForm.expenseDate ?? ''}
                             onChange={e => setEditForm(p => ({ ...p, expenseDate: e.target.value }))} /></td>
                           <td className="px-2 py-2"><input className="input text-sm py-1.5 w-24"
-                            defaultValue={item.userName}
+                            value={editForm.userName ?? ''}
                             onChange={e => setEditForm(p => ({ ...p, userName: e.target.value }))} /></td>
                           <td className="px-2 py-2"><input className="input text-sm py-1.5 w-24"
-                            defaultValue={item.category}
+                            value={editForm.category ?? ''}
                             onChange={e => setEditForm(p => ({ ...p, category: e.target.value }))} /></td>
                           <td className="px-2 py-2"><input className="input text-sm py-1.5 w-36"
-                            defaultValue={item.description}
+                            value={editForm.description ?? ''}
                             onChange={e => setEditForm(p => ({ ...p, description: e.target.value }))} /></td>
                           <td className="px-2 py-2"><input className="input text-sm py-1.5 w-28"
-                            defaultValue={item.amount.toLocaleString()}
+                            value={editForm.amount ?? ''}
                             onChange={e => setEditForm(p => ({ ...p, amount: e.target.value }))} /></td>
                           <td className="px-2 py-2">
                             <div className="flex gap-1">
@@ -254,7 +271,16 @@ export default function ExpenseTeamPage() {
                           <td className="px-4 py-3">
                             {canEdit && (
                               <div className="flex gap-1">
-                                <button onClick={() => { setEditingId(item.id); setEditForm({}) }}
+                                <button onClick={() => {
+                                  setEditingId(item.id)
+                                  setEditForm({
+                                    expenseDate: item.expenseDate,
+                                    userName: item.userName,
+                                    category: item.category,
+                                    description: item.description ?? '',
+                                    amount: item.amount.toLocaleString(),
+                                  })
+                                }}
                                   className="p-1.5 rounded-lg hover:bg-toss-gray-100 text-toss-gray-500">
                                   <Edit2 size={13} />
                                 </button>

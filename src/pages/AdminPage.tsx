@@ -300,18 +300,21 @@ function HeadcountManagementSection({ teams }: { teams: Team[] }) {
     const row = getRow(month)
     const endHc = calcEnd(row)
     setSaving(month)
-    await db.upsertHeadcount(selectedTeamId, selectedFiscalYear, month, endHc,
-      row.beginHeadcount, row.newHires, row.departures)
-    setHeadcounts(prev => {
-      const next = prev.filter(h => h.month !== month)
-      return [...next, { teamId: selectedTeamId, fiscalYear: selectedFiscalYear, month,
-        beginHeadcount: row.beginHeadcount, newHires: row.newHires, departures: row.departures,
-        headcount: endHc }]
-    })
-    setEdits(prev => { const n = { ...prev }; delete n[month]; return n })
-    setSaving(null)
-    setSaved(month)
-    setTimeout(() => setSaved(null), 1500)
+    try {
+      await db.upsertHeadcount(selectedTeamId, selectedFiscalYear, month, endHc,
+        row.beginHeadcount, row.newHires, row.departures)
+      setHeadcounts(prev => {
+        const next = prev.filter(h => h.month !== month)
+        return [...next, { teamId: selectedTeamId, fiscalYear: selectedFiscalYear, month,
+          beginHeadcount: row.beginHeadcount, newHires: row.newHires, departures: row.departures,
+          headcount: endHc }]
+      })
+      setEdits(prev => { const n = { ...prev }; delete n[month]; return n })
+      setSaved(month)
+      setTimeout(() => setSaved(null), 1500)
+    } finally {
+      setSaving(null)
+    }
   }
 
   const totalEnd = fiscalMonths.reduce((s, fm) => s + calcEnd(getRow(fm.month)), 0)
