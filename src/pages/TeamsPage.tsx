@@ -11,8 +11,8 @@ import type { TeamBudgetSummary, TrafficLightConfig, MonthlyBudgetData, FiscalMo
 
 const STATUS_COLORS: Record<string, string> = { green: '#00C896', yellow: '#FFB800', red: '#FF4B4B' }
 const BAR_MAX_H = 64
-const BAR_W = 9
-const BAR_W_HOVER = 14
+const BAR_W = 36
+const BAR_W_HOVER = 56
 
 function MonthlyBarChart({ monthlyData, fiscalMonths }: {
   monthlyData: MonthlyBudgetData[]
