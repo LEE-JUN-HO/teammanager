@@ -70,10 +70,12 @@ export default function ExpenseTeamPage() {
     ? items
     : items.filter(i => i.month === selectedMonth)
 
+  const budgetRate = team?.isDivision ? config.divisionBudgetPerPerson : config.budgetPerPerson
+
   // compute month summary
   function monthSummary(month: number) {
     const hc = headcounts.find(h => h.month === month)?.headcount ?? 0
-    const allocated = calcAllocated(hc, config.budgetPerPerson)
+    const allocated = calcAllocated(hc, budgetRate)
     const actual = items.filter(i => i.month === month).reduce((s, i) => s + i.amount, 0)
     const rate = calcExecutionRate(actual, allocated)
     const status = actual > 0 ? getExecutionStatus(rate, config) : 'green' as const

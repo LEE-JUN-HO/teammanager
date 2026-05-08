@@ -49,7 +49,12 @@ export default function TeamsPage() {
                   <Users size={18} style={{ color: s.team.color }} />
                 </div>
                 <div>
-                  <h3 className="font-bold text-toss-gray-900">{s.team.name}</h3>
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-bold text-toss-gray-900">{s.team.name}</h3>
+                    {s.team.isDivision && (
+                      <span className="text-[10px] font-semibold text-purple-600 bg-purple-100 px-1.5 py-0.5 rounded-full">본부</span>
+                    )}
+                  </div>
                   <p className="text-xs text-toss-gray-500 mt-0.5">
                     최소 {Math.min(...s.monthlyData.map(m => m.headcount))}명 ~ 최대 {Math.max(...s.monthlyData.map(m => m.headcount))}명
                   </p>

@@ -11,17 +11,25 @@ import { calcAllocated, calcExecutionRate, getExecutionStatus } from '../utils/b
 export async function getTeams(): Promise<Team[]> {
   const { data, error } = await supabase.from('teams').select('*').order('name')
   if (error) throw error
-  return (data ?? []).map(r => ({ id: r.id, name: r.name, color: r.color, createdAt: r.created_at }))
+  return (data ?? []).map(r => ({
+    id: r.id, name: r.name, color: r.color,
+    isDivision: r.is_division ?? false,
+    createdAt: r.created_at,
+  }))
 }
 
-export async function addTeam(team: Pick<Team, 'name' | 'color'>): Promise<Team> {
-  const { data, error } = await supabase.from('teams').insert(team).select().single()
+export async function addTeam(team: Pick<Team, 'name' | 'color' | 'isDivision'>): Promise<Team> {
+  const { data, error } = await supabase.from('teams').insert({
+    name: team.name, color: team.color, is_division: team.isDivision,
+  }).select().single()
   if (error) throw error
-  return { id: data.id, name: data.name, color: data.color, createdAt: data.created_at }
+  return { id: data.id, name: data.name, color: data.color, isDivision: data.is_division ?? false, createdAt: data.created_at }
 }
 
-export async function updateTeam(id: string, updates: Pick<Team, 'name' | 'color'>): Promise<void> {
-  const { error } = await supabase.from('teams').update(updates).eq('id', id)
+export async function updateTeam(id: string, updates: Pick<Team, 'name' | 'color' | 'isDivision'>): Promise<void> {
+  const { error } = await supabase.from('teams').update({
+    name: updates.name, color: updates.color, is_division: updates.isDivision,
+  }).eq('id', id)
   if (error) throw error
 }
 
@@ -172,11 +180,12 @@ export async function deleteExpenseItem(id: string): Promise<void> {
 // ─────────────────────────────────────────
 export async function getTrafficLightConfig(): Promise<TrafficLightConfig> {
   const { data, error } = await supabase.from('traffic_light_config').select('*').eq('id', 1).single()
-  if (error) return { greenMin: 80, greenMax: 100, yellowLowMin: 60, yellowHighMax: 120, budgetPerPerson: 50_000 }
+  if (error) return { greenMin: 80, greenMax: 100, yellowLowMin: 60, yellowHighMax: 120, budgetPerPerson: 50_000, divisionBudgetPerPerson: 33_333 }
   return {
     greenMin: data.green_min, greenMax: data.green_max,
     yellowLowMin: data.yellow_low_min, yellowHighMax: data.yellow_high_max,
     budgetPerPerson: data.budget_per_person ?? 50_000,
+    divisionBudgetPerPerson: data.division_budget_per_person ?? 33_333,
   }
 }
 
@@ -185,6 +194,7 @@ export async function updateTrafficLightConfig(cfg: TrafficLightConfig): Promise
     green_min: cfg.greenMin, green_max: cfg.greenMax,
     yellow_low_min: cfg.yellowLowMin, yellow_high_max: cfg.yellowHighMax,
     budget_per_person: cfg.budgetPerPerson,
+    division_budget_per_person: cfg.divisionBudgetPerPerson,
     updated_at: new Date().toISOString(),
   }).eq('id', 1)
   if (error) throw error
@@ -216,10 +226,11 @@ export async function getTeamBudgetSummaries(
   const fiscalOrder = [2,3,4,5,6,7,8,9,10,11,12,1]
 
   return teams.map(team => {
+    const budgetRate = team.isDivision ? config.divisionBudgetPerPerson : config.budgetPerPerson
     const monthlyData = fiscalOrder.map(month => {
       const hc      = headcounts.find(h => h.teamId === team.id && h.month === month)
       const hcount  = hc?.headcount ?? 0
-      const alloc   = calcAllocated(hcount, config.budgetPerPerson)
+      const alloc   = calcAllocated(hcount, budgetRate)
       const actual  = expMap[team.id]?.[month] ?? 0
       const rate    = calcExecutionRate(actual, alloc)
       const status: StatusType = actual > 0 ? getExecutionStatus(rate, config) : 'green'

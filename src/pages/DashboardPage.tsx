@@ -151,6 +151,9 @@ export default function DashboardPage() {
                       <div className="flex items-center gap-2.5">
                         <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: s.team.color }} />
                         <span className="font-semibold text-toss-gray-900 text-sm">{s.team.name}</span>
+                        {s.team.isDivision && (
+                          <span className="text-[10px] font-semibold text-purple-600 bg-purple-100 px-1.5 py-0.5 rounded-full">본부</span>
+                        )}
                       </div>
                     </td>
                     <td className="px-5 py-3.5 text-sm text-toss-gray-600">
