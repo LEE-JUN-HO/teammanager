@@ -496,9 +496,11 @@ function TeamManagementSection({ isAdmin, teams, setTeams }: {
     <div className="card">
       <h2 className="font-bold text-toss-gray-900 mb-1">팀 · 본부 관리</h2>
       <p className="text-sm text-toss-gray-500 mb-4">팀 또는 본부를 추가 · 수정 · 삭제할 수 있어요. 본부로 설정하면 별도 예산 기준이 적용됩니다.</p>
-      <div className="space-y-2 mb-4">
+      {/* PC·태블릿: 4열 그리드 / 모바일: 1열 */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-2 mb-4">
         {teams.map(t => (
-          <div key={t.id}>
+          /* 수정 중인 항목은 전 열 차지 */
+          <div key={t.id} className={editingId === t.id ? 'col-span-1 md:col-span-4' : ''}>
             {editingId === t.id ? (
               /* 인라인 수정 폼 */
               <div className="border-2 border-toss-blue rounded-xl p-3 space-y-3">
@@ -532,17 +534,17 @@ function TeamManagementSection({ isAdmin, teams, setTeams }: {
                 </div>
               </div>
             ) : (
-              /* 일반 표시 행 */
-              <div className="flex items-center justify-between bg-toss-gray-50 rounded-xl px-4 py-3">
-                <div className="flex items-center gap-3">
+              /* 일반 카드 */
+              <div className="flex items-center justify-between bg-toss-gray-50 rounded-xl px-4 py-3 h-full">
+                <div className="flex items-center gap-2 min-w-0">
                   <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: t.color }} />
-                  <span className="text-sm font-semibold">{t.name}</span>
+                  <span className="text-sm font-semibold truncate">{t.name}</span>
                   {t.isDivision && (
-                    <span className="text-xs font-semibold text-purple-600 bg-purple-100 px-2 py-0.5 rounded-full">본부</span>
+                    <span className="text-xs font-semibold text-purple-600 bg-purple-100 px-2 py-0.5 rounded-full flex-shrink-0">본부</span>
                   )}
                 </div>
                 {isAdmin && (
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-1 flex-shrink-0 ml-1">
                     <button onClick={() => handleEditStart(t)}
                       className="p-1.5 rounded-lg hover:bg-toss-gray-200 text-toss-gray-500 transition-colors">
                       <Pencil size={13} />
