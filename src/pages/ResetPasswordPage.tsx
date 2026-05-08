@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import { TrendingUp, Eye, EyeOff, AlertCircle, CheckCircle } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 
+const SHARED_ACCOUNTS = ['viewer@bigxdata.io']
+
 export default function ResetPasswordPage() {
   const [password, setPassword]   = useState('')
   const [confirm, setConfirm]     = useState('')
@@ -17,6 +19,12 @@ export default function ResetPasswordPage() {
     setError('')
     if (password.length < 6) { setError('비밀번호는 6자 이상이어야 합니다.'); return }
     if (password !== confirm)  { setError('비밀번호가 일치하지 않습니다.'); return }
+    // 공용 계정은 비밀번호 변경 불가
+    const { data: { user } } = await supabase.auth.getUser()
+    if (user?.email && SHARED_ACCOUNTS.includes(user.email.toLowerCase())) {
+      setError('이 계정은 공용 계정으로 비밀번호를 변경할 수 없습니다.')
+      return
+    }
     setLoading(true)
     const { error: err } = await supabase.auth.updateUser({ password })
     setLoading(false)

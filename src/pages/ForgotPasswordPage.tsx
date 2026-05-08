@@ -3,6 +3,9 @@ import { Link } from 'react-router-dom'
 import { TrendingUp, AlertCircle, CheckCircle, ArrowLeft } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 
+/** 비밀번호 변경이 금지된 공용 계정 이메일 목록 */
+const SHARED_ACCOUNTS = ['viewer@bigxdata.io']
+
 export default function ForgotPasswordPage() {
   const [email, setEmail]     = useState('')
   const [loading, setLoading] = useState(false)
@@ -12,6 +15,10 @@ export default function ForgotPasswordPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
+    if (SHARED_ACCOUNTS.includes(email.trim().toLowerCase())) {
+      setError('이 계정은 공용 계정으로 비밀번호를 변경할 수 없습니다.')
+      return
+    }
     setLoading(true)
     const redirectTo = `${window.location.origin}${window.location.pathname}`
     const { error: err } = await supabase.auth.resetPasswordForEmail(email, { redirectTo })
