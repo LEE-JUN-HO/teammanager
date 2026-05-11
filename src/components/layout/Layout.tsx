@@ -3,7 +3,7 @@ import Sidebar from './Sidebar'
 import { useAuthStore } from '../../store/authStore'
 
 export default function Layout() {
-  const { session, loading } = useAuthStore()
+  const { session, profile, loading } = useAuthStore()
 
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center bg-toss-gray-50">
