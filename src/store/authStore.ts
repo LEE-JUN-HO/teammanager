@@ -27,13 +27,23 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
 
   initialize: async () => {
-    const { data } = await supabase.auth.getSession()
-    const session = data.session
-    set({ session, loading: false })
-    if (session?.user) {
-      const profile = await getCurrentProfile(session.user.id)
-      set({ profile })
+    // 10초 안에 세션을 못 가져오면 강제로 loading 해제 (무한 로딩 방지)
+    const safetyTimer = setTimeout(() => set({ loading: false }), 10_000)
+
+    try {
+      const { data } = await supabase.auth.getSession()
+      const session = data.session
+      set({ session, loading: false })
+      if (session?.user) {
+        const profile = await getCurrentProfile(session.user.id)
+        set({ profile })
+      }
+    } catch {
+      set({ loading: false })
+    } finally {
+      clearTimeout(safetyTimer)
     }
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === 'PASSWORD_RECOVERY') {
         window.location.hash = '/reset-password'
@@ -43,8 +53,12 @@ export const useAuthStore = create<AuthState>((set) => ({
       // 프로필 재조회는 실제 로그인/로그아웃 시에만 수행 (TOKEN_REFRESHED 등 제외)
       if (event === 'SIGNED_IN') {
         if (session?.user) {
-          const profile = await getCurrentProfile(session.user.id)
-          set({ profile })
+          try {
+            const profile = await getCurrentProfile(session.user.id)
+            set({ profile })
+          } catch {
+            // 프로필 로드 실패 시 세션은 유지, 프로필만 null 유지
+          }
         }
       } else if (event === 'SIGNED_OUT') {
         set({ profile: null })
