@@ -12,6 +12,7 @@ export default function Layout() {
   )
 
   if (!session) return <Navigate to="/login" replace />
+  if (profile?.role === 'pending') return <Navigate to="/pending-approval" replace />
 
   return (
     <div className="flex min-h-screen bg-toss-gray-50">

@@ -12,6 +12,7 @@ import TeamDetailPage from './pages/TeamDetailPage'
 import ExpensePage from './pages/ExpensePage'
 import ExpenseTeamPage from './pages/ExpenseTeamPage'
 import AdminPage from './pages/AdminPage'
+import PendingApprovalPage from './pages/PendingApprovalPage'
 
 export default function App() {
   const { initialize } = useAuthStore()
@@ -28,7 +29,8 @@ export default function App() {
         <Route path="/login"           element={<LoginPage />} />
         <Route path="/signup"          element={<SignupPage />} />
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-        <Route path="/reset-password"  element={<ResetPasswordPage />} />
+        <Route path="/reset-password"    element={<ResetPasswordPage />} />
+        <Route path="/pending-approval"  element={<PendingApprovalPage />} />
         <Route element={<Layout />}>
           <Route path="/dashboard"          element={<DashboardPage />} />
           <Route path="/teams"              element={<TeamsPage />} />

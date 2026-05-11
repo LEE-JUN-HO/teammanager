@@ -63,6 +63,11 @@ export async function getCurrentProfile(userId: string): Promise<UserProfile | n
   }
 }
 
+export async function approveUser(id: string): Promise<void> {
+  const { error } = await supabase.from('profiles').update({ role: 'viewer' }).eq('id', id)
+  if (error) throw error
+}
+
 export async function updateProfile(id: string, updates: { role?: string; teamId?: string | null; name?: string }): Promise<void> {
   const payload: Record<string, unknown> = {}
   if (updates.role !== undefined)   payload.role    = updates.role
