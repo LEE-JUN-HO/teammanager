@@ -2,7 +2,7 @@ export interface UserProfile {
   id: string
   email: string
   name: string
-  role: 'admin' | 'manager' | 'viewer'
+  role: 'admin' | 'manager' | 'viewer' | 'pending'
   teamId: string | null
   createdAt: string
 }

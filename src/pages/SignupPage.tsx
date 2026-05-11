@@ -16,6 +16,10 @@ export default function SignupPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
+    if (!email.endsWith('@bigxdata.io')) {
+      setError('@bigxdata.io 이메일 주소만 가입할 수 있습니다.')
+      return
+    }
     if (password !== confirm) { setError('비밀번호가 일치하지 않습니다.'); return }
     if (password.length < 6)  { setError('비밀번호는 6자 이상이어야 합니다.'); return }
     setLoading(true)
@@ -37,10 +41,10 @@ export default function SignupPage() {
       <div className="min-h-screen bg-gradient-to-br from-toss-gray-50 to-toss-blue-bg flex items-center justify-center p-4">
         <div className="w-full max-w-sm card shadow-modal text-center">
           <CheckCircle size={40} className="text-status-green mx-auto mb-3" />
-          <h2 className="text-lg font-bold text-toss-gray-900 mb-2">회원가입 완료</h2>
-          <p className="text-sm text-toss-gray-500 mb-1">이메일 인증 링크를 확인해주세요.</p>
+          <h2 className="text-lg font-bold text-toss-gray-900 mb-2">가입 신청 완료</h2>
+          <p className="text-sm text-toss-gray-500 mb-1">관리자 승인 후 로그인할 수 있습니다.</p>
           <p className="text-xs text-toss-gray-400 mb-5">
-            가입 후 관리자가 역할(viewer/manager)과 팀을 배정해 드립니다.
+            승인이 완료되면 담당자에게 별도로 안내됩니다.
           </p>
           <button className="btn-primary w-full" onClick={() => navigate('/login')}>로그인으로 이동</button>
         </div>
@@ -56,7 +60,7 @@ export default function SignupPage() {
             <TrendingUp size={26} className="text-white" />
           </div>
           <h1 className="text-2xl font-bold text-toss-gray-900">회원가입</h1>
-          <p className="text-sm text-toss-gray-400 mt-1">가입 후 관리자가 역할을 배정합니다</p>
+          <p className="text-sm text-toss-gray-400 mt-1">@bigxdata.io 이메일로만 가입 가능합니다</p>
         </div>
 
         <div className="card shadow-modal">
@@ -68,7 +72,7 @@ export default function SignupPage() {
             </div>
             <div>
               <label className="label">이메일</label>
-              <input type="email" className="input" placeholder="email@company.com"
+              <input type="email" className="input" placeholder="name@bigxdata.io"
                 value={email} onChange={e => setEmail(e.target.value)} required />
             </div>
             <div>
@@ -92,7 +96,7 @@ export default function SignupPage() {
               className="btn-primary w-full flex items-center justify-center h-11">
               {loading
                 ? <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                : '가입하기'}
+                : '가입 신청'}
             </button>
           </form>
 

@@ -5,7 +5,7 @@ import { useAppStore } from '../store/appStore'
 import * as db from '../lib/db'
 import Header from '../components/layout/Header'
 import { MONTHLY_BUDGET_PER_PERSON, MONTHLY_DIVISION_BUDGET_PER_PERSON, formatKRW, getFiscalMonths, DEFAULT_CONFIG } from '../utils/budget'
-import { Check, AlertCircle, Plus, Trash2, Save, Pencil, X } from 'lucide-react'
+import { Check, AlertCircle, Plus, Trash2, Save, Pencil, X, UserCheck } from 'lucide-react'
 import { StatusDot } from '../components/ui/StatusBadge'
 import type { TrafficLightConfig, UserProfile, Team, MonthlyHeadcount } from '../types'
 
@@ -171,6 +171,7 @@ function UserManagementSection({ isAdmin, teams }: { isAdmin: boolean; teams: Te
   const [users, setUsers] = useState<UserProfile[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState<string | null>(null)
+  const [approving, setApproving] = useState<string | null>(null)
   const [edits, setEdits] = useState<Record<string, { role: string; teamId: string | null }>>({})
 
   useEffect(() => {
@@ -178,6 +179,16 @@ function UserManagementSection({ isAdmin, teams }: { isAdmin: boolean; teams: Te
   }, [])
 
   const getEdit = (u: UserProfile) => edits[u.id] ?? { role: u.role, teamId: u.teamId }
+
+  const handleApprove = async (u: UserProfile) => {
+    setApproving(u.id)
+    try {
+      await db.approveUser(u.id)
+      setUsers(prev => prev.map(p => p.id === u.id ? { ...p, role: 'viewer' } : p))
+    } finally {
+      setApproving(null)
+    }
+  }
 
   const handleSave = async (u: UserProfile) => {
     const e = getEdit(u)
@@ -197,84 +208,143 @@ function UserManagementSection({ isAdmin, teams }: { isAdmin: boolean; teams: Te
 
   if (loading) return <div className="card animate-pulse h-48" />
 
+  const pendingUsers = users.filter(u => u.role === 'pending')
+  const activeUsers  = users.filter(u => u.role !== 'pending')
+
   return (
-    <div className="card p-0 overflow-hidden">
-      <div className="px-5 py-4 border-b border-toss-gray-100">
-        <h2 className="font-bold text-toss-gray-900">회원 관리</h2>
-        <p className="text-sm text-toss-gray-500 mt-0.5">가입 회원의 역할과 담당 팀을 설정하세요</p>
-      </div>
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[600px]">
-          <thead>
-            <tr className="border-b border-toss-gray-100 bg-toss-gray-50">
-              {['이름', '이메일', '역할', '담당 팀', ''].map(h => (
-                <th key={h} className="px-5 py-3 text-left text-xs font-semibold text-toss-gray-500">{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-toss-gray-100">
-            {users.map(u => {
-              const e = getEdit(u)
-              const changed = e.role !== u.role || e.teamId !== u.teamId
-              return (
-                <tr key={u.id} className="hover:bg-toss-gray-50">
-                  <td className="px-5 py-3">
-                    <div className="flex items-center gap-2">
-                      <div className="w-7 h-7 rounded-full bg-toss-blue flex items-center justify-center text-white text-xs font-bold">
-                        {u.name[0]}
-                      </div>
-                      <span className="text-sm font-semibold">{u.name}</span>
-                    </div>
-                  </td>
-                  <td className="px-5 py-3 text-sm text-toss-gray-600">{u.email}</td>
-                  <td className="px-5 py-3">
-                    {isAdmin ? (
-                      <select className="input text-sm py-1.5 w-28"
-                        value={e.role}
-                        onChange={ev => setEdits(p => ({ ...p, [u.id]: { ...e, role: ev.target.value } }))}>
-                        <option value="viewer">viewer</option>
-                        <option value="manager">manager</option>
-                        <option value="admin">admin</option>
-                      </select>
-                    ) : (
-                      <span className={`px-2 py-1 rounded-lg text-xs font-semibold ${
-                        u.role === 'admin' ? 'bg-toss-blue-bg text-toss-blue' :
-                        u.role === 'manager' ? 'bg-purple-100 text-purple-700' :
-                        'bg-toss-gray-100 text-toss-gray-600'}`}>
-                        {u.role}
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-5 py-3">
-                    {isAdmin && e.role === 'manager' ? (
-                      <select className="input text-sm py-1.5 w-36"
-                        value={e.teamId ?? ''}
-                        onChange={ev => setEdits(p => ({ ...p, [u.id]: { ...e, teamId: ev.target.value || null } }))}>
-                        <option value="">팀 미배정</option>
-                        {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-                      </select>
-                    ) : (
-                      <span className="text-sm text-toss-gray-600">
-                        {u.teamId ? teams.find(t => t.id === u.teamId)?.name ?? '-' : '-'}
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-5 py-3">
-                    {isAdmin && changed && (
-                      <button onClick={() => handleSave(u)} disabled={saving === u.id}
-                        className="btn-primary text-xs py-1.5 px-3 flex items-center gap-1">
-                        {saving === u.id
-                          ? <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                          : <Save size={12} />}
-                        저장
-                      </button>
-                    )}
-                  </td>
+    <div className="space-y-4">
+      {/* 승인 대기 */}
+      {pendingUsers.length > 0 && (
+        <div className="card p-0 overflow-hidden border border-amber-200">
+          <div className="px-5 py-4 border-b border-amber-100 bg-amber-50 flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full bg-amber-400" />
+            <h2 className="font-bold text-amber-800">승인 대기</h2>
+            <span className="ml-auto text-xs font-semibold bg-amber-200 text-amber-800 px-2 py-0.5 rounded-full">
+              {pendingUsers.length}명
+            </span>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[500px]">
+              <thead>
+                <tr className="border-b border-amber-100 bg-amber-50">
+                  {['이름', '이메일', '가입일', ''].map(h => (
+                    <th key={h} className="px-5 py-3 text-left text-xs font-semibold text-amber-700">{h}</th>
+                  ))}
                 </tr>
-              )
-            })}
-          </tbody>
-        </table>
+              </thead>
+              <tbody className="divide-y divide-amber-50">
+                {pendingUsers.map(u => (
+                  <tr key={u.id} className="hover:bg-amber-50">
+                    <td className="px-5 py-3">
+                      <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-full bg-amber-300 flex items-center justify-center text-amber-800 text-xs font-bold">
+                          {u.name[0]}
+                        </div>
+                        <span className="text-sm font-semibold">{u.name}</span>
+                      </div>
+                    </td>
+                    <td className="px-5 py-3 text-sm text-toss-gray-600">{u.email}</td>
+                    <td className="px-5 py-3 text-xs text-toss-gray-400">
+                      {new Date(u.createdAt).toLocaleDateString('ko-KR')}
+                    </td>
+                    <td className="px-5 py-3">
+                      {isAdmin && (
+                        <button onClick={() => handleApprove(u)} disabled={approving === u.id}
+                          className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg font-semibold bg-amber-500 text-white hover:bg-amber-600 transition-colors">
+                          {approving === u.id
+                            ? <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                            : <UserCheck size={13} />}
+                          승인
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* 활성 회원 */}
+      <div className="card p-0 overflow-hidden">
+        <div className="px-5 py-4 border-b border-toss-gray-100">
+          <h2 className="font-bold text-toss-gray-900">회원 관리</h2>
+          <p className="text-sm text-toss-gray-500 mt-0.5">가입 회원의 역할과 담당 팀을 설정하세요</p>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[600px]">
+            <thead>
+              <tr className="border-b border-toss-gray-100 bg-toss-gray-50">
+                {['이름', '이메일', '역할', '담당 팀', ''].map(h => (
+                  <th key={h} className="px-5 py-3 text-left text-xs font-semibold text-toss-gray-500">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-toss-gray-100">
+              {activeUsers.map(u => {
+                const e = getEdit(u)
+                const changed = e.role !== u.role || e.teamId !== u.teamId
+                return (
+                  <tr key={u.id} className="hover:bg-toss-gray-50">
+                    <td className="px-5 py-3">
+                      <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-full bg-toss-blue flex items-center justify-center text-white text-xs font-bold">
+                          {u.name[0]}
+                        </div>
+                        <span className="text-sm font-semibold">{u.name}</span>
+                      </div>
+                    </td>
+                    <td className="px-5 py-3 text-sm text-toss-gray-600">{u.email}</td>
+                    <td className="px-5 py-3">
+                      {isAdmin ? (
+                        <select className="input text-sm py-1.5 w-28"
+                          value={e.role}
+                          onChange={ev => setEdits(p => ({ ...p, [u.id]: { ...e, role: ev.target.value } }))}>
+                          <option value="viewer">viewer</option>
+                          <option value="manager">manager</option>
+                          <option value="admin">admin</option>
+                        </select>
+                      ) : (
+                        <span className={`px-2 py-1 rounded-lg text-xs font-semibold ${
+                          u.role === 'admin' ? 'bg-toss-blue-bg text-toss-blue' :
+                          u.role === 'manager' ? 'bg-purple-100 text-purple-700' :
+                          'bg-toss-gray-100 text-toss-gray-600'}`}>
+                          {u.role}
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-5 py-3">
+                      {isAdmin && e.role === 'manager' ? (
+                        <select className="input text-sm py-1.5 w-36"
+                          value={e.teamId ?? ''}
+                          onChange={ev => setEdits(p => ({ ...p, [u.id]: { ...e, teamId: ev.target.value || null } }))}>
+                          <option value="">팀 미배정</option>
+                          {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                        </select>
+                      ) : (
+                        <span className="text-sm text-toss-gray-600">
+                          {u.teamId ? teams.find(t => t.id === u.teamId)?.name ?? '-' : '-'}
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-5 py-3">
+                      {isAdmin && changed && (
+                        <button onClick={() => handleSave(u)} disabled={saving === u.id}
+                          className="btn-primary text-xs py-1.5 px-3 flex items-center gap-1">
+                          {saving === u.id
+                            ? <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                            : <Save size={12} />}
+                          저장
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   )
