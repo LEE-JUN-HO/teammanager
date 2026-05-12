@@ -9,7 +9,6 @@ interface AuthState {
   profile: UserProfile | null
   loading: boolean
   setSession: (s: Session | null) => void
-  loadProfile: (userId: string) => Promise<void>
   initialize: () => Promise<() => void>
   logout: () => Promise<void>
 }
@@ -20,11 +19,6 @@ export const useAuthStore = create<AuthState>((set) => ({
   loading: true,
 
   setSession: (session) => set({ session }),
-
-  loadProfile: async (userId) => {
-    const profile = await getCurrentProfile(userId)
-    set({ profile })
-  },
 
   initialize: async () => {
     // 10초 안에 세션을 못 가져오면 강제로 loading 해제 (무한 로딩 방지)

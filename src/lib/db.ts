@@ -64,7 +64,7 @@ export async function getCurrentProfile(userId: string): Promise<UserProfile | n
 }
 
 export async function approveUser(id: string): Promise<void> {
-  const { error } = await supabase.from('profiles').update({ role: 'viewer' }).eq('id', id)
+  const { error } = await supabase.from('profiles').update({ role: 'viewer' }).eq('id', id).eq('role', 'pending')
   if (error) throw error
 }
 
