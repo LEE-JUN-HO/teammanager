@@ -21,8 +21,9 @@ export const useAuthStore = create<AuthState>((set) => ({
   setSession: (session) => set({ session }),
 
   initialize: async () => {
-    // 10초 안에 세션을 못 가져오면 강제로 loading 해제 (무한 로딩 방지)
-    const safetyTimer = setTimeout(() => set({ loading: false }), 10_000)
+    // 15초 안에 세션을 못 가져오면 강제로 loading 해제 — fetch timeout(30s)과 역할 분리
+    // 실제 cold start는 페이지별 로딩 스피너가 처리하므로 초기 인증은 빠르게 해제
+    const safetyTimer = setTimeout(() => set({ loading: false }), 15_000)
 
     try {
       const { data } = await supabase.auth.getSession()

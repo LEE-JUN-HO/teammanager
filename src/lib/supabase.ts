@@ -7,7 +7,7 @@ if (!url || !key) {
   console.error('[Supabase] VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY 환경변수가 없습니다.')
 }
 
-/** 모든 Supabase HTTP 요청에 15초 타임아웃 적용 — 네트워크 지연으로 인한 무한 로딩 방지 */
+/** 모든 Supabase HTTP 요청에 30초 타임아웃 적용 — cold start(~25초) 대응 및 무한 로딩 방지 */
 function fetchWithTimeout(timeoutMs: number) {
   return (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     const controller = new AbortController()
@@ -30,5 +30,5 @@ function anySignal(signals: AbortSignal[]): AbortSignal {
 }
 
 export const supabase = createClient(url ?? '', key ?? '', {
-  global: { fetch: fetchWithTimeout(15_000) },
+  global: { fetch: fetchWithTimeout(30_000) },
 })

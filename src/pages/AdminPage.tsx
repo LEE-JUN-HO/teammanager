@@ -14,24 +14,35 @@ function BudgetConfigSection({ isAdmin }: { isAdmin: boolean }) {
   const [budgetPerPerson, setBudgetPerPerson] = useState(MONTHLY_BUDGET_PER_PERSON)
   const [divisionBudgetPerPerson, setDivisionBudgetPerPerson] = useState(MONTHLY_DIVISION_BUDGET_PER_PERSON)
   const [saved, setSaved] = useState(false)
+  const [saveError, setSaveError] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState(false)
 
   useEffect(() => {
     db.getTrafficLightConfig().then(cfg => {
       setBudgetPerPerson(cfg.budgetPerPerson)
       setDivisionBudgetPerPerson(cfg.divisionBudgetPerPerson)
-      setLoading(false)
-    })
+    }).catch(() => setLoadError(true)).finally(() => setLoading(false))
   }, [])
 
   const save = async () => {
-    const cfg = await db.getTrafficLightConfig()
-    await db.updateTrafficLightConfig({ ...cfg, budgetPerPerson, divisionBudgetPerPerson })
-    setSaved(true)
-    setTimeout(() => setSaved(false), 2000)
+    setSaveError(false)
+    try {
+      const cfg = await db.getTrafficLightConfig()
+      await db.updateTrafficLightConfig({ ...cfg, budgetPerPerson, divisionBudgetPerPerson })
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2000)
+    } catch {
+      setSaveError(true)
+    }
   }
 
   if (loading) return <div className="card animate-pulse h-32" />
+  if (loadError) return (
+    <div className="card flex items-center gap-2 text-sm text-status-red">
+      <AlertCircle size={15} />데이터를 불러오지 못했습니다. 새로고침해주세요.
+    </div>
+  )
 
   return (
     <div className="card">
@@ -86,10 +97,15 @@ function BudgetConfigSection({ isAdmin }: { isAdmin: boolean }) {
       </div>
 
       {isAdmin && (
-        <div>
+        <div className="space-y-2">
           <button onClick={save} className="btn-primary flex items-center gap-2">
             {saved ? <><Check size={16} />저장됨</> : <><Save size={16} />저장</>}
           </button>
+          {saveError && (
+            <p className="flex items-center gap-1.5 text-xs text-status-red">
+              <AlertCircle size={13} />저장에 실패했습니다. 다시 시도해주세요.
+            </p>
+          )}
         </div>
       )}
     </div>
@@ -100,18 +116,31 @@ function BudgetConfigSection({ isAdmin }: { isAdmin: boolean }) {
 function TrafficLightSection({ isAdmin }: { isAdmin: boolean }) {
   const [cfg, setCfg] = useState<TrafficLightConfig>(DEFAULT_CONFIG)
   const [saved, setSaved] = useState(false)
+  const [saveError, setSaveError] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState(false)
 
   useEffect(() => {
-    db.getTrafficLightConfig().then(c => { setCfg(c); setLoading(false) })
+    db.getTrafficLightConfig().then(c => setCfg(c)).catch(() => setLoadError(true)).finally(() => setLoading(false))
   }, [])
 
   const save = async () => {
-    await db.updateTrafficLightConfig(cfg)
-    setSaved(true); setTimeout(() => setSaved(false), 2000)
+    setSaveError(false)
+    try {
+      await db.updateTrafficLightConfig(cfg)
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2000)
+    } catch {
+      setSaveError(true)
+    }
   }
 
   if (loading) return <div className="card animate-pulse h-48" />
+  if (loadError) return (
+    <div className="card flex items-center gap-2 text-sm text-status-red">
+      <AlertCircle size={15} />데이터를 불러오지 못했습니다. 새로고침해주세요.
+    </div>
+  )
 
   return (
     <div className="card">
@@ -158,9 +187,16 @@ function TrafficLightSection({ isAdmin }: { isAdmin: boolean }) {
         ))}
       </div>
       {isAdmin && (
-        <button onClick={save} className="btn-primary mt-5 flex items-center gap-2">
-          {saved ? <><Check size={16} />저장됨</> : <><Save size={16} />기준 저장</>}
-        </button>
+        <div className="mt-5 space-y-2">
+          <button onClick={save} className="btn-primary flex items-center gap-2">
+            {saved ? <><Check size={16} />저장됨</> : <><Save size={16} />기준 저장</>}
+          </button>
+          {saveError && (
+            <p className="flex items-center gap-1.5 text-xs text-status-red">
+              <AlertCircle size={13} />저장에 실패했습니다. 다시 시도해주세요.
+            </p>
+          )}
+        </div>
       )}
     </div>
   )
@@ -174,8 +210,10 @@ function UserManagementSection({ isAdmin, teams }: { isAdmin: boolean; teams: Te
   const [approving, setApproving] = useState<string | null>(null)
   const [edits, setEdits] = useState<Record<string, { role: string; teamId: string | null }>>({})
 
+  const [loadError, setLoadError] = useState(false)
+
   useEffect(() => {
-    db.getProfiles().then(u => { setUsers(u); setLoading(false) })
+    db.getProfiles().then(u => setUsers(u)).catch(() => setLoadError(true)).finally(() => setLoading(false))
   }, [])
 
   const getEdit = (u: UserProfile) => edits[u.id] ?? { role: u.role, teamId: u.teamId }
@@ -207,6 +245,11 @@ function UserManagementSection({ isAdmin, teams }: { isAdmin: boolean; teams: Te
   }
 
   if (loading) return <div className="card animate-pulse h-48" />
+  if (loadError) return (
+    <div className="card flex items-center gap-2 text-sm text-status-red">
+      <AlertCircle size={15} />회원 목록을 불러오지 못했습니다. 새로고침해주세요.
+    </div>
+  )
 
   const pendingUsers = users.filter(u => u.role === 'pending')
   const activeUsers  = users.filter(u => u.role !== 'pending')
