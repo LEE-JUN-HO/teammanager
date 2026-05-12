@@ -63,7 +63,11 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
 
   logout: async () => {
-    await supabase.auth.signOut()
     set({ session: null, profile: null })
+    try {
+      await supabase.auth.signOut()
+    } catch {
+      // 네트워크 오류여도 로컬 상태는 이미 초기화됨 — 서버 세션은 만료 후 자동 소멸
+    }
   },
 }))

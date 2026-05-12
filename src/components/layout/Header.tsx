@@ -35,10 +35,15 @@ function ChangePasswordModal({ onClose }: { onClose: () => void }) {
     if (password.length < 6) { setError('비밀번호는 6자 이상이어야 합니다.'); return }
     if (password !== confirm) { setError('비밀번호가 일치하지 않습니다.'); return }
     setLoading(true)
-    const { error: err } = await supabase.auth.updateUser({ password })
-    setLoading(false)
-    if (err) { setError(err.message); return }
-    setSuccess(true)
+    try {
+      const { error: err } = await supabase.auth.updateUser({ password })
+      if (err) { setError(err.message); return }
+      setSuccess(true)
+    } catch {
+      setError('오류가 발생했습니다. 다시 시도해주세요.')
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
