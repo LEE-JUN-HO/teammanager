@@ -19,6 +19,12 @@ function ChangePasswordModal({ onClose }: { onClose: () => void }) {
   const [success, setSuccess]     = useState(false)
   const [loading, setLoading]     = useState(false)
 
+  useEffect(() => {
+    if (!success) return
+    const id = setTimeout(onClose, 1500)
+    return () => clearTimeout(id)
+  }, [success, onClose])
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
@@ -33,7 +39,6 @@ function ChangePasswordModal({ onClose }: { onClose: () => void }) {
     setLoading(false)
     if (err) { setError(err.message); return }
     setSuccess(true)
-    setTimeout(onClose, 1500)
   }
 
   return (
@@ -151,7 +156,7 @@ export default function Header({ title, subtitle }: Props) {
                 className="flex items-center gap-2 bg-toss-gray-50 hover:bg-toss-gray-100 rounded-xl px-3 py-2 transition-colors"
               >
                 <div className="w-6 h-6 rounded-full bg-toss-blue flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
-                  {profile.name[0]}
+                  {profile.name?.[0] ?? '?'}
                 </div>
                 <div className="hidden sm:block text-left">
                   <p className="text-xs font-semibold text-toss-gray-900 leading-tight">{profile.name}</p>

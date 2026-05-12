@@ -11,7 +11,9 @@ export default function PendingApprovalPage() {
     if (loading) return
     if (!session) { navigate('/login', { replace: true }); return }
     if (profile && profile.role !== 'pending') { navigate('/dashboard', { replace: true }) }
-  }, [session, profile, loading])
+  }, [session, profile, loading, navigate])
+
+  if (loading) return null
 
   const handleLogout = async () => {
     await logout()
