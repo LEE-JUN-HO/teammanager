@@ -46,6 +46,15 @@ export default {
         'card-hover': '0 4px 12px 0 rgba(0,0,0,0.10)',
         modal: '0 20px 60px 0 rgba(0,0,0,0.15)',
       },
+      fontSize: {
+        xs:   ['13px', { lineHeight: '1.5' }],
+        sm:   ['15px', { lineHeight: '1.6' }],
+        base: ['17px', { lineHeight: '1.7' }],
+        lg:   ['19px', { lineHeight: '1.6' }],
+        xl:   ['22px', { lineHeight: '1.5' }],
+        '2xl':['26px', { lineHeight: '1.4' }],
+        '3xl':['30px', { lineHeight: '1.3' }],
+      },
       borderRadius: {
         xl: '12px',
         '2xl': '16px',
