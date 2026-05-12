@@ -20,8 +20,7 @@ function BudgetConfigSection({ isAdmin }: { isAdmin: boolean }) {
     db.getTrafficLightConfig().then(cfg => {
       setBudgetPerPerson(cfg.budgetPerPerson)
       setDivisionBudgetPerPerson(cfg.divisionBudgetPerPerson)
-      setLoading(false)
-    })
+    }).catch(() => {}).finally(() => setLoading(false))
   }, [])
 
   const save = async () => {
@@ -103,7 +102,7 @@ function TrafficLightSection({ isAdmin }: { isAdmin: boolean }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    db.getTrafficLightConfig().then(c => { setCfg(c); setLoading(false) })
+    db.getTrafficLightConfig().then(c => setCfg(c)).catch(() => {}).finally(() => setLoading(false))
   }, [])
 
   const save = async () => {
@@ -175,7 +174,7 @@ function UserManagementSection({ isAdmin, teams }: { isAdmin: boolean; teams: Te
   const [edits, setEdits] = useState<Record<string, { role: string; teamId: string | null }>>({})
 
   useEffect(() => {
-    db.getProfiles().then(u => { setUsers(u); setLoading(false) })
+    db.getProfiles().then(u => setUsers(u)).catch(() => {}).finally(() => setLoading(false))
   }, [])
 
   const getEdit = (u: UserProfile) => edits[u.id] ?? { role: u.role, teamId: u.teamId }
