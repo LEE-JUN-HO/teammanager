@@ -1,9 +1,11 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { TrendingUp, Eye, EyeOff, AlertCircle } from 'lucide-react'
 import { supabase } from '../lib/supabase'
+import { useAuthStore } from '../store/authStore'
 
 export default function LoginPage() {
+  const { session } = useAuthStore()
   const [email, setEmail]     = useState('')
   const [password, setPassword] = useState('')
   const [showPw, setShowPw]   = useState(false)
@@ -11,16 +13,25 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
 
+  useEffect(() => {
+    if (session) navigate('/dashboard', { replace: true })
+  }, [session])
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
     setLoading(true)
-    const { error: err } = await supabase.auth.signInWithPassword({ email, password })
-    setLoading(false)
-    if (err) {
-      setError('이메일 또는 비밀번호를 확인해주세요.')
-    } else {
-      navigate('/dashboard')
+    try {
+      const { error: err } = await supabase.auth.signInWithPassword({ email, password })
+      if (err) {
+        setError('이메일 또는 비밀번호를 확인해주세요.')
+      } else {
+        navigate('/dashboard')
+      }
+    } catch {
+      setError('네트워크 오류가 발생했습니다. 다시 시도해주세요.')
+    } finally {
+      setLoading(false)
     }
   }
 
