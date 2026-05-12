@@ -20,7 +20,7 @@ function MonthlyBarChart({ monthlyData, fiscalMonths }: {
 
   return (
     <div className="flex-1 px-5 py-5 min-w-0">
-      <p className="text-xs font-semibold text-toss-gray-600 mb-4">월별 집행 현황</p>
+      <p className="text-sm font-semibold text-toss-gray-600 mb-4">월별 집행 현황</p>
 
       {/* 막대 그래프 — overflow-visible로 툴팁이 카드 위로 올라올 수 있게 */}
       <div className="flex items-end gap-1" style={{ height: BAR_MAX_H }}>
@@ -53,8 +53,8 @@ function MonthlyBarChart({ monthlyData, fiscalMonths }: {
                 }}
               >
                 <div className="bg-toss-gray-800 text-white rounded-lg px-2.5 py-1.5 whitespace-nowrap text-center shadow-lg">
-                  <p className="text-xs font-bold">{formatKRW(md?.actual ?? 0)}</p>
-                  <p className="text-[11px] text-toss-gray-300 mt-0.5">
+                  <p className="text-sm sm:text-base font-bold">{formatKRW(md?.actual ?? 0)}</p>
+                  <p className="text-xs sm:text-sm text-toss-gray-300 mt-0.5">
                     {md?.actual ? `집행률 ${rate.toFixed(1)}%` : '미집행'}
                   </p>
                 </div>
@@ -91,7 +91,7 @@ function MonthlyBarChart({ monthlyData, fiscalMonths }: {
       <div className="flex gap-1 mt-2">
         {fiscalMonths.map((fm) => (
           <div key={fm.month} className="flex-1 text-center">
-            <span className={`text-[11px] font-medium transition-colors ${
+            <span className={`text-[13px] sm:text-base font-medium transition-colors ${
               hovered === fm.month
                 ? 'text-toss-blue font-bold'
                 : 'text-toss-gray-500'
@@ -177,8 +177,8 @@ export default function TeamsPage() {
                   { label: '잔여 예산', value: formatKRW(s.totalAllocated - s.totalActual) },
                 ].map(k => (
                   <div key={k.label}>
-                    <p className="text-xs text-toss-gray-500">{k.label}</p>
-                    <p className="text-sm font-bold text-toss-gray-900 mt-0.5 whitespace-nowrap">{k.value}</p>
+                    <p className="text-sm text-toss-gray-500">{k.label}</p>
+                    <p className="text-base font-bold text-toss-gray-900 mt-0.5 whitespace-nowrap sm:text-lg">{k.value}</p>
                   </div>
                 ))}
               </div>
