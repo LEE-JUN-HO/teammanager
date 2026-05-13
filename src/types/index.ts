@@ -78,3 +78,24 @@ export interface FiscalMonth {
   label: string
   shortLabel: string
 }
+
+export interface ApprovalRequest {
+  id: string
+  teamId: string
+  teamName: string
+  fiscalYear: number
+  month: number
+  expenseDate: string
+  userName: string
+  category: string
+  description: string | null
+  amount: number
+  requesterId: string
+  requesterEmail: string
+  requesterName: string
+  status: 'pending' | 'approved' | 'rejected'
+  rejectionReason: string | null
+  token: string
+  createdAt: string
+  resolvedAt: string | null
+}

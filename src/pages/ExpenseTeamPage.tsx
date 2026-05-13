@@ -2,14 +2,17 @@ import { useEffect, useState, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useAppStore } from '../store/appStore'
 import { useAuthStore } from '../store/authStore'
+import { supabase } from '../lib/supabase'
 import * as db from '../lib/db'
 import Header from '../components/layout/Header'
 import { getFiscalMonths, formatKRWFull, calcAllocated, DEFAULT_CONFIG } from '../utils/budget'
 import StatusBadge from '../components/ui/StatusBadge'
 import ProgressBar from '../components/ui/ProgressBar'
 import { getExecutionStatus, calcExecutionRate } from '../utils/budget'
-import { ChevronLeft, Plus, Trash2, Edit2, Check, X } from 'lucide-react'
+import { ChevronLeft, Plus, Trash2, Edit2, Check, X, Send, AlertCircle } from 'lucide-react'
 import type { ExpenseItem, Team, MonthlyHeadcount, TrafficLightConfig } from '../types'
+
+const FN_BASE = 'https://qoaubeeiljddxqdkdcus.supabase.co/functions/v1'
 
 interface NewItemForm {
   expenseDate: string
@@ -42,8 +45,15 @@ export default function ExpenseTeamPage() {
   const formRef = useRef<HTMLDivElement>(null)
 
   const canEdit = profile?.role === 'admin' || (profile?.role === 'manager' && profile?.teamId === teamId)
+  const canRequestApproval = profile?.role === 'manager' && profile?.teamId === teamId
 
   const fiscalMonths = getFiscalMonths(selectedFiscalYear)
+
+  const [showApprovalModal, setShowApprovalModal] = useState(false)
+  const [approvalForm, setApprovalForm] = useState<NewItemForm>(EMPTY_FORM)
+  const [approvalSaving, setApprovalSaving] = useState(false)
+  const [approvalError, setApprovalError] = useState('')
+  const [approvalSuccess, setApprovalSuccess] = useState(false)
 
   useEffect(() => { load() }, [teamId, selectedFiscalYear])
 
@@ -80,6 +90,50 @@ export default function ExpenseTeamPage() {
     const rate = calcExecutionRate(actual, allocated)
     const status = actual > 0 ? getExecutionStatus(rate, config) : 'green' as const
     return { allocated, actual, rate, status, headcount: hc }
+  }
+
+  function closeApprovalModal() {
+    setShowApprovalModal(false)
+    setApprovalForm(EMPTY_FORM)
+    setApprovalError('')
+    setApprovalSuccess(false)
+  }
+
+  async function handleApprovalSubmit() {
+    if (!teamId || !team) return
+    setApprovalError('')
+    const amount = Number(approvalForm.amount.replace(/,/g, ''))
+    if (!approvalForm.expenseDate || !approvalForm.userName || !approvalForm.category || isNaN(amount) || amount <= 0) {
+      setApprovalError('사용날짜, 사용자, 항목, 금액은 필수입니다.')
+      return
+    }
+    const month = new Date(approvalForm.expenseDate).getMonth() + 1
+    setApprovalSaving(true)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const res = await fetch(`${FN_BASE}/approval-request`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token}`,
+        },
+        body: JSON.stringify({
+          teamId, teamName: team.name, fiscalYear: selectedFiscalYear, month,
+          expenseDate: approvalForm.expenseDate, userName: approvalForm.userName,
+          category: approvalForm.category, description: approvalForm.description, amount,
+        }),
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        setApprovalError((data as { error?: string }).error ?? '오류가 발생했습니다.')
+        return
+      }
+      setApprovalSuccess(true)
+    } catch {
+      setApprovalError('네트워크 오류가 발생했습니다.')
+    } finally {
+      setApprovalSaving(false)
+    }
   }
 
   async function handleAdd() {
@@ -209,12 +263,20 @@ export default function ExpenseTeamPage() {
             <h2 className="text-sm font-semibold text-toss-gray-700">
               집행 항목 ({filteredItems.length}건 · {formatKRWFull(totalActual)})
             </h2>
-            {canEdit && (
-              <button onClick={() => { setShowForm(true); setTimeout(() => formRef.current?.scrollIntoView({ behavior: 'smooth' }), 100) }}
-                className="btn-primary flex items-center gap-1.5 text-sm py-2 px-4">
-                <Plus size={15} />항목 추가
-              </button>
-            )}
+            <div className="flex items-center gap-2">
+              {canRequestApproval && (
+                <button onClick={() => setShowApprovalModal(true)}
+                  className="flex items-center gap-1.5 text-sm py-2 px-4 rounded-xl border border-toss-gray-200 font-semibold text-toss-gray-700 hover:bg-toss-gray-50 transition-colors">
+                  <Send size={14} />승인요청
+                </button>
+              )}
+              {canEdit && (
+                <button onClick={() => { setShowForm(true); setTimeout(() => formRef.current?.scrollIntoView({ behavior: 'smooth' }), 100) }}
+                  className="btn-primary flex items-center gap-1.5 text-sm py-2 px-4">
+                  <Plus size={15} />항목 추가
+                </button>
+              )}
+            </div>
           </div>
 
           <div className="overflow-x-auto">
@@ -318,6 +380,89 @@ export default function ExpenseTeamPage() {
             </table>
           </div>
         </div>
+
+        {/* Approval request modal */}
+        {showApprovalModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
+            <div className="w-full max-w-lg card shadow-modal">
+              <div className="flex items-center justify-between mb-5">
+                <h2 className="font-bold text-toss-gray-900 flex items-center gap-2">
+                  <Send size={17} className="text-toss-blue" />승인 요청
+                </h2>
+                <button onClick={closeApprovalModal}
+                  className="text-toss-gray-400 hover:text-toss-gray-700 text-lg leading-none">✕</button>
+              </div>
+
+              {approvalSuccess ? (
+                <div className="flex flex-col items-center py-6 gap-3 text-center">
+                  <div className="w-12 h-12 rounded-full bg-status-green-bg flex items-center justify-center">
+                    <Check size={22} className="text-status-green" />
+                  </div>
+                  <p className="font-bold text-toss-gray-900">승인 요청 전송 완료</p>
+                  <p className="text-sm text-toss-gray-500">
+                    관리자에게 승인 요청 메일이 발송되었습니다.<br />
+                    승인 시 항목이 자동으로 등록됩니다.
+                  </p>
+                  <button onClick={closeApprovalModal} className="btn-primary mt-2 px-6">확인</button>
+                </div>
+              ) : (
+                <>
+                  <div className="grid grid-cols-2 gap-4 mb-4">
+                    <div>
+                      <label className="label">사용날짜 *</label>
+                      <input type="date" className="input"
+                        value={approvalForm.expenseDate}
+                        onChange={e => setApprovalForm(p => ({ ...p, expenseDate: e.target.value }))} />
+                    </div>
+                    <div>
+                      <label className="label">사용자 *</label>
+                      <input className="input" placeholder="홍길동"
+                        value={approvalForm.userName}
+                        onChange={e => setApprovalForm(p => ({ ...p, userName: e.target.value }))} />
+                    </div>
+                    <div>
+                      <label className="label">항목 *</label>
+                      <input className="input" placeholder="팀회식, 교육비 등"
+                        value={approvalForm.category}
+                        onChange={e => setApprovalForm(p => ({ ...p, category: e.target.value }))} />
+                    </div>
+                    <div>
+                      <label className="label">금액 (원) *</label>
+                      <input className="input" placeholder="150000"
+                        value={approvalForm.amount}
+                        onChange={e => setApprovalForm(p => ({ ...p, amount: e.target.value }))} />
+                    </div>
+                    <div className="col-span-2">
+                      <label className="label">내용</label>
+                      <input className="input" placeholder="구체적인 사용 내용"
+                        value={approvalForm.description}
+                        onChange={e => setApprovalForm(p => ({ ...p, description: e.target.value }))} />
+                    </div>
+                  </div>
+
+                  {approvalError && (
+                    <div className="flex items-center gap-2 text-sm text-status-red bg-status-red-bg px-3 py-2.5 rounded-xl mb-3">
+                      <AlertCircle size={15} />{approvalError}
+                    </div>
+                  )}
+
+                  <div className="flex gap-2">
+                    <button onClick={closeApprovalModal}
+                      className="flex-1 py-2.5 rounded-xl border border-toss-gray-200 text-sm font-semibold text-toss-gray-700 hover:bg-toss-gray-50 transition-colors">
+                      취소
+                    </button>
+                    <button onClick={handleApprovalSubmit} disabled={approvalSaving}
+                      className="flex-1 btn-primary flex items-center justify-center h-11">
+                      {approvalSaving
+                        ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        : <><Send size={14} className="mr-1.5" />승인 요청</>}
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Add form */}
         {canEdit && showForm && (
