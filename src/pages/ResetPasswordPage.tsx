@@ -26,10 +26,15 @@ export default function ResetPasswordPage() {
       return
     }
     setLoading(true)
-    const { error: err } = await supabase.auth.updateUser({ password })
-    setLoading(false)
-    if (err) setError(err.message)
-    else setDone(true)
+    try {
+      const { error: err } = await supabase.auth.updateUser({ password })
+      if (err) setError(err.message)
+      else setDone(true)
+    } catch {
+      setError('네트워크 오류가 발생했습니다.')
+    } finally {
+      setLoading(false)
+    }
   }
 
   if (done) {

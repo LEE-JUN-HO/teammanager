@@ -20,11 +20,16 @@ export default function ForgotPasswordPage() {
       return
     }
     setLoading(true)
-    const redirectTo = `${window.location.origin}${window.location.pathname}`
-    const { error: err } = await supabase.auth.resetPasswordForEmail(email, { redirectTo })
-    setLoading(false)
-    if (err) setError(err.message)
-    else setDone(true)
+    try {
+      const redirectTo = `${window.location.origin}${window.location.pathname}`
+      const { error: err } = await supabase.auth.resetPasswordForEmail(email, { redirectTo })
+      if (err) setError(err.message)
+      else setDone(true)
+    } catch {
+      setError('네트워크 오류가 발생했습니다.')
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (

@@ -30,8 +30,15 @@ export const useAuthStore = create<AuthState>((set) => ({
       const session = data.session
       set({ session, loading: false })
       if (session?.user) {
-        const profile = await getCurrentProfile(session.user.id)
-        set({ profile })
+        try {
+          const timeout = new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error('profile timeout')), 12_000)
+          )
+          const profile = await Promise.race([getCurrentProfile(session.user.id), timeout])
+          set({ profile })
+        } catch {
+          // 프로필 로드 실패/타임아웃 — 페이지별 로딩 스피너가 처리
+        }
       }
     } catch {
       set({ loading: false })
@@ -49,10 +56,13 @@ export const useAuthStore = create<AuthState>((set) => ({
       if (event === 'SIGNED_IN') {
         if (session?.user) {
           try {
-            const profile = await getCurrentProfile(session.user.id)
+            const timeout = new Promise<never>((_, reject) =>
+              setTimeout(() => reject(new Error('profile timeout')), 12_000)
+            )
+            const profile = await Promise.race([getCurrentProfile(session.user.id), timeout])
             set({ profile })
           } catch {
-            // 프로필 로드 실패 시 세션은 유지, 프로필만 null 유지
+            // 프로필 로드 실패/타임아웃 — 세션은 유지, 프로필만 null 유지
           }
         }
       } else if (event === 'SIGNED_OUT') {

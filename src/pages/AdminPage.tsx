@@ -714,7 +714,7 @@ export default function AdminPage() {
     if (profile && profile.role !== 'admin') navigate('/dashboard', { replace: true })
   }, [profile])
 
-  useEffect(() => { db.getTeams().then(setTeams) }, [])
+  useEffect(() => { db.getTeams().then(setTeams).catch(() => {}) }, [])
 
   return (
     <div>

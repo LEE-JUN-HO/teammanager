@@ -213,7 +213,7 @@ export async function getTeamBudgetSummaries(
   fiscalYear: number,
   config: TrafficLightConfig
 ): Promise<TeamBudgetSummary[]> {
-  const [teams, headcounts, expenses] = await Promise.all([
+  const results = await Promise.allSettled([
     getTeams(),
     getHeadcounts(fiscalYear),
     supabase.from('expense_items')
@@ -221,6 +221,9 @@ export async function getTeamBudgetSummaries(
       .eq('fiscal_year', fiscalYear)
       .then(r => r.data ?? []),
   ])
+  const teams      = results[0].status === 'fulfilled' ? results[0].value : []
+  const headcounts = results[1].status === 'fulfilled' ? results[1].value : []
+  const expenses   = results[2].status === 'fulfilled' ? results[2].value as { team_id: string; month: number; amount: number }[] : []
 
   // aggregate expense amounts by team+month
   const expMap: Record<string, Record<number, number>> = {}

@@ -23,16 +23,18 @@ export default function SignupPage() {
     if (password !== confirm) { setError('비밀번호가 일치하지 않습니다.'); return }
     if (password.length < 6)  { setError('비밀번호는 6자 이상이어야 합니다.'); return }
     setLoading(true)
-    const { error: err } = await supabase.auth.signUp({
-      email,
-      password,
-      options: { data: { name } },
-    })
-    setLoading(false)
-    if (err) {
-      setError(err.message)
-    } else {
-      setDone(true)
+    try {
+      const { error: err } = await supabase.auth.signUp({
+        email,
+        password,
+        options: { data: { name } },
+      })
+      if (err) setError(err.message)
+      else setDone(true)
+    } catch {
+      setError('네트워크 오류가 발생했습니다.')
+    } finally {
+      setLoading(false)
     }
   }
 
