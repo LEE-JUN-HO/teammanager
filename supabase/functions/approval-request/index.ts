@@ -1,13 +1,10 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts"
 import { createClient } from "jsr:@supabase/supabase-js@2"
 
-const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
-const SERVICE_KEY  = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-const RESEND_KEY   = Deno.env.get('RESEND_API_KEY')!
-const FROM_EMAIL   = Deno.env.get('FROM_EMAIL') ?? 'onboarding@resend.dev'
-const VERCEL       = 'https://teammanager-phi.vercel.app'
-const ADMIN_EMAIL  = 'jhlee@bigxdata.io'
-const FN_BASE      = `${SUPABASE_URL}/functions/v1`
+const SUPABASE_URL   = Deno.env.get('SUPABASE_URL')!
+const SERVICE_KEY    = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+const BOT_TOKEN      = Deno.env.get('SLACK_BOT_TOKEN')!
+const SLACK_CHANNEL  = Deno.env.get('SLACK_CHANNEL_ID')!
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -56,58 +53,61 @@ Deno.serve(async (req: Request) => {
   if (insertError) return json({ error: insertError.message }, 500)
 
   const reqToken = reqData.token
-  const approveUrl = `${FN_BASE}/approval-action?action=approve&token=${reqToken}`
-  const rejectUrl  = `${VERCEL}/#/reject/${reqToken}`
   const amtFmt = Number(amount).toLocaleString('ko-KR')
 
-  const html = `<!DOCTYPE html>
-<html lang="ko">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-<body style="font-family:-apple-system,BlinkMacSystemFont,sans-serif;max-width:600px;margin:0 auto;padding:20px;color:#191F28;background:#F7F8FA;">
-  <div style="background:#0064FF;color:white;padding:20px 24px;border-radius:12px 12px 0 0;">
-    <h2 style="margin:0;font-size:20px;">예산 집행 승인 요청</h2>
-  </div>
-  <div style="background:white;border:1px solid #E6E8EB;border-top:none;padding:24px;border-radius:0 0 12px 12px;">
-    <p style="color:#4E5968;margin:0 0 16px;"><strong style="color:#191F28;">${profile.name}</strong>님이 예산 집행 승인을 요청했습니다.</p>
-    <table style="width:100%;border-collapse:collapse;margin-bottom:24px;">
-      ${[
-        ['팀', String(teamName)],
-        ['회계연도', `${fiscalYear}년`],
-        ['월', `${month}월`],
-        ['사용날짜', String(expenseDate)],
-        ['사용자', String(userName)],
-        ['항목', String(category)],
-        ['내용', description ? String(description) : '-'],
-        ['금액', `<strong style="color:#0064FF;font-size:16px;">${amtFmt}원</strong>`],
-      ].map(([k, v], i) => `<tr style="background:${i%2===0?'#F7F8FA':'white'}">
-        <td style="padding:10px 14px;border:1px solid #E6E8EB;font-weight:600;width:100px;color:#6B7684;">${k}</td>
-        <td style="padding:10px 14px;border:1px solid #E6E8EB;">${v}</td>
-      </tr>`).join('')}
-    </table>
-    <div>
-      <a href="${approveUrl}" style="display:inline-block;background:#00C896;color:white;padding:14px 28px;border-radius:8px;text-decoration:none;font-weight:700;font-size:15px;margin-right:12px;">✅ 승인</a>
-      <a href="${rejectUrl}"  style="display:inline-block;background:#FF4B4B;color:white;padding:14px 28px;border-radius:8px;text-decoration:none;font-weight:700;font-size:15px;">❌ 반려</a>
-    </div>
-  </div>
-</body>
-</html>`
+  const slackRes = await fetch('https://slack.com/api/chat.postMessage', {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${BOT_TOKEN}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      channel: SLACK_CHANNEL,
+      text: `${profile.name}님의 예산 집행 승인 요청 — ${teamName} · ${category} ${amtFmt}원`,
+      blocks: [
+        {
+          type: 'header',
+          text: { type: 'plain_text', text: '📋 예산 집행 승인 요청', emoji: true },
+        },
+        {
+          type: 'section',
+          text: { type: 'mrkdwn', text: `*${profile.name}*님이 예산 집행 승인을 요청했습니다.` },
+        },
+        {
+          type: 'section',
+          fields: [
+            { type: 'mrkdwn', text: `*팀*\n${teamName}` },
+            { type: 'mrkdwn', text: `*항목*\n${category}` },
+            { type: 'mrkdwn', text: `*사용자*\n${userName}` },
+            { type: 'mrkdwn', text: `*금액*\n${amtFmt}원` },
+            { type: 'mrkdwn', text: `*사용날짜*\n${expenseDate}` },
+            { type: 'mrkdwn', text: `*내용*\n${description ?? '-'}` },
+          ],
+        },
+        {
+          type: 'actions',
+          elements: [
+            {
+              type: 'button',
+              text: { type: 'plain_text', text: '✅ 승인', emoji: true },
+              style: 'primary',
+              action_id: 'approve_request',
+              value: reqToken,
+            },
+            {
+              type: 'button',
+              text: { type: 'plain_text', text: '❌ 반려', emoji: true },
+              style: 'danger',
+              action_id: 'reject_request',
+              value: reqToken,
+            },
+          ],
+        },
+      ],
+    }),
+  })
 
-  try {
-    const emailRes = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${RESEND_KEY}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        from: `Team Budget <${FROM_EMAIL}>`,
-        to: [ADMIN_EMAIL],
-        subject: `[승인요청] ${teamName} · ${category} ${amtFmt}원`,
-        html,
-      }),
-    })
-    if (!emailRes.ok) {
-      console.error('Resend error:', await emailRes.text())
-    }
-  } catch (e) {
-    console.error('Email send failed:', e)
+  const slackData = await slackRes.json()
+  if (!slackData.ok) {
+    console.error('Slack error:', slackData.error)
+    return json({ success: true, requestId: reqData.id, slackError: slackData.error })
   }
 
   return json({ success: true, requestId: reqData.id })
