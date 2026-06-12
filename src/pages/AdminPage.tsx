@@ -5,7 +5,21 @@ import { useAppStore } from '../store/appStore'
 import * as db from '../lib/db'
 import Header from '../components/layout/Header'
 import { MONTHLY_BUDGET_PER_PERSON, MONTHLY_DIVISION_BUDGET_PER_PERSON, formatKRW, getFiscalMonths, DEFAULT_CONFIG } from '../utils/budget'
-import { Check, AlertCircle, Plus, Trash2, Save, Pencil, X, UserCheck } from 'lucide-react'
+import {
+  Check,
+  AlertCircle,
+  Plus,
+  Trash2,
+  Save,
+  Pencil,
+  X,
+  UserCheck,
+  WalletCards,
+  Users,
+  SlidersHorizontal,
+  UserCog,
+  Building2,
+} from 'lucide-react'
 import { StatusDot } from '../components/ui/StatusBadge'
 import type { TrafficLightConfig, UserProfile, Team, MonthlyHeadcount } from '../types'
 
@@ -230,15 +244,21 @@ function UserManagementSection({ isAdmin, teams }: { isAdmin: boolean; teams: Te
 
   const handleSave = async (u: UserProfile) => {
     const e = getEdit(u)
+    const nextTeamId = e.role === 'manager' ? e.teamId : null
     setSaving(u.id)
     try {
       await db.updateProfile(u.id, {
         role: e.role,
-        teamId: e.role === 'manager' ? e.teamId : null,
+        teamId: nextTeamId,
       })
       setUsers(prev => prev.map(p => p.id === u.id
-        ? { ...p, role: e.role as UserProfile['role'], teamId: e.role === 'manager' ? e.teamId : null }
+        ? { ...p, role: e.role as UserProfile['role'], teamId: nextTeamId }
         : p))
+      setEdits(prev => {
+        const next = { ...prev }
+        delete next[u.id]
+        return next
+      })
     } finally {
       setSaving(null)
     }
@@ -327,7 +347,9 @@ function UserManagementSection({ isAdmin, teams }: { isAdmin: boolean; teams: Te
             <tbody className="divide-y divide-toss-gray-100">
               {activeUsers.map(u => {
                 const e = getEdit(u)
-                const changed = e.role !== u.role || e.teamId !== u.teamId
+                const editedTeamId = e.role === 'manager' ? e.teamId : null
+                const currentTeamId = u.role === 'manager' ? u.teamId : null
+                const changed = e.role !== u.role || editedTeamId !== currentTeamId
                 return (
                   <tr key={u.id} className="hover:bg-toss-gray-50">
                     <td className="px-5 py-3">
@@ -343,7 +365,16 @@ function UserManagementSection({ isAdmin, teams }: { isAdmin: boolean; teams: Te
                       {isAdmin ? (
                         <select className="input text-sm py-1.5 w-28"
                           value={e.role}
-                          onChange={ev => setEdits(p => ({ ...p, [u.id]: { ...e, role: ev.target.value } }))}>
+                          onChange={ev => {
+                            const nextRole = ev.target.value
+                            setEdits(p => ({
+                              ...p,
+                              [u.id]: {
+                                role: nextRole,
+                                teamId: nextRole === 'manager' ? e.teamId : null,
+                              },
+                            }))
+                          }}>
                           <option value="viewer">viewer</option>
                           <option value="manager">manager</option>
                           <option value="admin">admin</option>
@@ -704,10 +735,21 @@ function TeamManagementSection({ isAdmin, teams, setTeams }: {
 }
 
 // ─── Main Admin Page ──────────────────────────────────────
+type AdminTab = 'budget' | 'headcount' | 'traffic' | 'users' | 'teams'
+
+const adminTabs: Array<{ id: AdminTab; label: string; icon: typeof WalletCards }> = [
+  { id: 'budget', label: '예산 기준', icon: WalletCards },
+  { id: 'headcount', label: '월별 인원', icon: Users },
+  { id: 'traffic', label: '신호등 기준', icon: SlidersHorizontal },
+  { id: 'users', label: '회원 관리', icon: UserCog },
+  { id: 'teams', label: '팀 · 본부', icon: Building2 },
+]
+
 export default function AdminPage() {
   const { profile } = useAuthStore()
   const navigate = useNavigate()
   const [teams, setTeams] = useState<Team[]>([])
+  const [activeTab, setActiveTab] = useState<AdminTab>('budget')
   const isAdmin = profile?.role === 'admin'
 
   useEffect(() => {
@@ -716,22 +758,54 @@ export default function AdminPage() {
 
   useEffect(() => { db.getTeams().then(setTeams).catch(() => {}) }, [])
 
+  const renderActiveSection = () => {
+    switch (activeTab) {
+      case 'budget':
+        return <BudgetConfigSection isAdmin={isAdmin} />
+      case 'headcount':
+        return <HeadcountManagementSection teams={teams} />
+      case 'traffic':
+        return <TrafficLightSection isAdmin={isAdmin} />
+      case 'users':
+        return <UserManagementSection isAdmin={isAdmin} teams={teams} />
+      case 'teams':
+        return <TeamManagementSection isAdmin={isAdmin} teams={teams} setTeams={setTeams} />
+    }
+  }
+
   return (
     <div>
       <Header title="관리자 설정" subtitle="신호등 기준, 회원 관리, 팀 관리" />
-      <div className="p-6 space-y-6">
+      <div className="p-6 space-y-5">
         {!isAdmin && (
           <div className="flex items-center gap-2 bg-status-yellow-bg text-amber-700 px-4 py-3 rounded-xl text-sm">
             <AlertCircle size={16} />관리자 권한이 있는 계정으로 로그인해야 설정을 변경할 수 있어요.
           </div>
         )}
 
-        <BudgetConfigSection isAdmin={isAdmin} />
+        <div className="flex flex-wrap gap-2">
+          {adminTabs.map(tab => {
+            const Icon = tab.icon
+            const selected = activeTab === tab.id
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setActiveTab(tab.id)}
+                className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-colors ${
+                  selected
+                    ? 'bg-toss-blue text-white shadow-sm'
+                    : 'bg-white text-toss-gray-600 border border-toss-gray-200 hover:bg-toss-gray-50'
+                }`}
+              >
+                <Icon size={16} />
+                {tab.label}
+              </button>
+            )
+          })}
+        </div>
 
-        <HeadcountManagementSection teams={teams} />
-        <TrafficLightSection isAdmin={isAdmin} />
-        <UserManagementSection isAdmin={isAdmin} teams={teams} />
-        <TeamManagementSection isAdmin={isAdmin} teams={teams} setTeams={setTeams} />
+        {renderActiveSection()}
       </div>
     </div>
   )
