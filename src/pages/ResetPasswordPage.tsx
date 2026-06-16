@@ -19,9 +19,9 @@ export default function ResetPasswordPage() {
     setError('')
     if (password.length < 6) { setError('비밀번호는 6자 이상이어야 합니다.'); return }
     if (password !== confirm)  { setError('비밀번호가 일치하지 않습니다.'); return }
-    // 공용 계정은 비밀번호 변경 불가
-    const { data: { user } } = await supabase.auth.getUser()
-    if (user?.email && SHARED_ACCOUNTS.includes(user.email.toLowerCase())) {
+    // 공용 계정은 비밀번호 변경 불가 — getUser()는 원격 API 호출이라 recovery 세션을 파기할 수 있으므로 getSession()으로 로컬 확인
+    const { data: { session } } = await supabase.auth.getSession()
+    if (session?.user?.email && SHARED_ACCOUNTS.includes(session.user.email.toLowerCase())) {
       setError('이 계정은 공용 계정으로 비밀번호를 변경할 수 없습니다.')
       return
     }
