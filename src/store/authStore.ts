@@ -25,27 +25,9 @@ export const useAuthStore = create<AuthState>((set) => ({
     // 실제 cold start는 페이지별 로딩 스피너가 처리하므로 초기 인증은 빠르게 해제
     const safetyTimer = setTimeout(() => set({ loading: false }), 15_000)
 
-    try {
-      const { data } = await supabase.auth.getSession()
-      const session = data.session
-      set({ session, loading: false })
-      if (session?.user) {
-        try {
-          const timeout = new Promise<never>((_, reject) =>
-            setTimeout(() => reject(new Error('profile timeout')), 12_000)
-          )
-          const profile = await Promise.race([getCurrentProfile(session.user.id), timeout])
-          set({ profile })
-        } catch {
-          // 프로필 로드 실패/타임아웃 — 페이지별 로딩 스피너가 처리
-        }
-      }
-    } catch {
-      set({ loading: false })
-    } finally {
-      clearTimeout(safetyTimer)
-    }
-
+    // onAuthStateChange를 getSession() 이전에 등록해야 PASSWORD_RECOVERY 이벤트를 놓치지 않음.
+    // Supabase는 getSession() 호출 시 URL hash의 토큰을 파싱하면서 이벤트를 발생시키므로
+    // 리스너가 먼저 등록되어 있어야 한다.
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === 'PASSWORD_RECOVERY') {
         window.location.hash = '/reset-password'
@@ -69,6 +51,28 @@ export const useAuthStore = create<AuthState>((set) => ({
         set({ profile: null })
       }
     })
+
+    try {
+      const { data } = await supabase.auth.getSession()
+      const session = data.session
+      set({ session, loading: false })
+      if (session?.user) {
+        try {
+          const timeout = new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error('profile timeout')), 12_000)
+          )
+          const profile = await Promise.race([getCurrentProfile(session.user.id), timeout])
+          set({ profile })
+        } catch {
+          // 프로필 로드 실패/타임아웃 — 페이지별 로딩 스피너가 처리
+        }
+      }
+    } catch {
+      set({ loading: false })
+    } finally {
+      clearTimeout(safetyTimer)
+    }
+
     return () => subscription.unsubscribe()
   },
 
